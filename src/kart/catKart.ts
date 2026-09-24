@@ -161,7 +161,7 @@ export class CatKart {
     const fs = k.forwardSpeed;
     const damp = (rate: number) => 1 - Math.exp(-rate * dt);
 
-    const targetOffset = k.drifting ? -k.driftDir * 0.4 : 0;
+    const targetOffset = k.drifting ? -k.driftDir * 0.3 : 0;
     this.visualYawOffset += (targetOffset - this.visualYawOffset) * damp(8);
     this.root.position.copy(pos);
     this.root.rotation.y = yaw + this.visualYawOffset;
