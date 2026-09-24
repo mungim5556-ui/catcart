@@ -31,7 +31,11 @@ export const KART = {
   hopVelocity: 5.5,
   driftMinSpeed: 9,
   /** Seconds of drift needed for each mini-turbo level (blue, orange, purple). */
-  driftLevels: [1.0, 2.1, 3.3],
+  /** Drift turn rate (rad/s) when steering out of / neutral / into the drift. */
+  driftTurnMin: 0.15,
+  driftTurnBase: 0.6,
+  driftTurnMax: 1.3,
+  driftLevels: [0.8, 1.7, 2.7],
   /** Boost duration awarded for each mini-turbo level. */
   driftBoost: [0, 0.6, 1.1, 1.7],
   padBoost: 1.2,
@@ -159,22 +163,25 @@ export class KartPhysics {
         this.drifting = false;
         if (level > 0) this.addBoost(KART.driftBoost[level], level);
       } else if (this.grounded) {
-        // Steering into the drift charges faster than steering out of it.
-        const into = input.steer * this.driftDir;
-        this.driftCharge += dt * (into > 0.3 ? 1.5 : 1.0);
+        // Actively steering (either way) charges faster than holding neutral.
+        this.driftCharge += dt * (1 + 0.5 * Math.abs(input.steer));
       }
     }
 
     // --- Steering ---
     const speedFactor = Math.min(1, Math.abs(fs) / 6) * (fs >= 0 ? 1 : -1);
-    let turn: number;
     if (this.drifting) {
-      // Always turns toward the drift side; input only widens or tightens it.
-      turn = this.driftDir * (0.6 + 0.4 * input.steer * this.driftDir) * 1.1;
+      // Always turns toward the drift side; steering only tightens or widens it,
+      // so counter-steering lets you hold a drift through gentle corners.
+      const s = input.steer * this.driftDir;
+      const rate =
+        s >= 0
+          ? KART.driftTurnBase + (KART.driftTurnMax - KART.driftTurnBase) * s
+          : KART.driftTurnBase + (KART.driftTurnBase - KART.driftTurnMin) * s;
+      this.yawRate = -this.driftDir * rate * speedFactor;
     } else {
-      turn = input.steer * (this.grounded ? 1 : 0.5);
+      this.yawRate = -input.steer * (this.grounded ? 1 : 0.5) * KART.turnRate * speedFactor;
     }
-    this.yawRate = -turn * KART.turnRate * speedFactor;
     const dYaw = this.yawRate * dt;
     this.yaw += dYaw;
 
