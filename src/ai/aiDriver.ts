@@ -27,7 +27,7 @@ export class AiDriver {
 
   constructor(
     private track: Track,
-    private profile: AiProfile,
+    readonly profile: AiProfile,
   ) {}
 
   drive(

@@ -19,9 +19,10 @@ const SKY = 0xbfe6ff;
 /** Grid slot the player starts from (0 = pole, 5 = last). */
 const PLAYER_SLOT = 3;
 /** AI base pace per rival (1 = same top speed as the player). */
-const AI_PACE = [0.965, 0.95, 0.935, 0.92, 0.905];
+const AI_PACE = [0.94, 0.95, 0.94, 0.93, 0.915];
 /** How hard AI is pulled toward the player (per track sample of gap). */
-const CATCH_UP = 0.0007;
+const CATCH_UP_AHEAD = 0.0011; // AI in front eases off
+const CATCH_UP_BEHIND = 0.0007; // AI behind pushes harder
 
 // --- Renderer & scene ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -51,13 +52,13 @@ const player = new Racer('나', GINGER, true, track, { laneBias: 0, driftSkill: 
 const rivals = RIVALS.map(
   (r, i) =>
     new Racer(r.name, r.style, false, track, {
-      laneBias: [-3, 2.5, -1, 3.5, 0.5][i],
-      driftSkill: [0.9, 0.75, 0.6, 0.45, 0.3][i],
+      laneBias: 0, // assigned per race in placeOnGrid
+      driftSkill: [0.6, 0.7, 0.6, 0.45, 0.3][i],
     }),
 );
 rivals.forEach((r, i) => {
   r.pace = AI_PACE[i];
-  r.rocketChance = [0.7, 0.5, 0.4, 0.3, 0.2][i];
+  r.rocketChance = [0.4, 0.4, 0.35, 0.3, 0.2][i];
 });
 const racers = [player, ...rivals];
 for (const r of racers) scene.add(r.model.root);
@@ -81,9 +82,13 @@ let clock = 0;
 let inputOverride: (() => KartInput) | null = null;
 
 function placeOnGrid(): void {
-  // Rivals fill the other slots, fastest nearest the front.
+  // Rivals get a shuffled grid order each race so nobody always starts on pole.
+  const order = [...rivals].sort(() => Math.random() - 0.5);
+  // Preferred lanes are shuffled too: a fixed inside line is a big advantage.
+  const lanes = [-2, -1, 0, 1, 2].sort(() => Math.random() - 0.5);
+  rivals.forEach((r, i) => (r.ai.profile.laneBias = lanes[i]));
   let slot = 0;
-  for (const r of rivals) {
+  for (const r of order) {
     if (slot === PLAYER_SLOT) slot++;
     r.place(track.gridPose(slot++));
   }
@@ -199,7 +204,8 @@ function step(): void {
     r.lastInput = racing ? r.ai.drive(r.physics, r.tracker, others, STEP, hazards) : IDLE_INPUT;
     // Catch-up: AI far ahead eases off, AI far behind pushes a little harder.
     const gap = r.tracker.distance - playerDist;
-    const catchUp = race.phase === 'racing' ? Math.max(0.88, Math.min(1.1, 1 - gap * CATCH_UP)) : 1;
+    const pull = 1 - gap * (gap > 0 ? CATCH_UP_AHEAD : CATCH_UP_BEHIND);
+    const catchUp = race.phase === 'racing' ? Math.max(0.86, Math.min(1.1, pull)) : 1;
     r.physics.speedMul = r.pace * catchUp;
   }
 

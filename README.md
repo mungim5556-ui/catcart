@@ -58,7 +58,7 @@ src/
 └── ui/itemHud.ts        # 아이템 슬롯 · 룰렛 연출
 ```
 
-AI 난이도는 `src/main.ts`의 `AI_PACE`(AI 속도)와 `CATCH_UP`(따라잡기 세기)로 조절합니다.
+AI 난이도는 `src/main.ts`의 `AI_PACE`(AI 속도)와 `CATCH_UP_AHEAD`/`CATCH_UP_BEHIND`(따라잡기 세기)로 조절합니다.
 조작감 튜닝은 `src/kart/kartPhysics.ts`의 `KART` 값을 바꾸면 됩니다.
 브라우저 콘솔에서 `catcart.KART.maxSpeed = 30`처럼 실시간으로 바꿔 볼 수도 있어요.
 
