@@ -120,7 +120,6 @@ kbd { background: #fff; color: #333; border-radius: 4px; padding: 0 5px; font-si
   display: inline-block; margin-left: 8px; font-size: 14px; color: #fff; background: #ffb300;
   padding: 2px 8px; border-radius: 10px; vertical-align: middle;
 }
-#results .again { margin: 10px 0 0; font-weight: 700; }
 
 @media (max-width: 600px) {
   #lap-row { font-size: 30px; }
@@ -162,4 +161,93 @@ kbd { background: #fff; color: #333; border-radius: 4px; padding: 0 5px; font-si
 @media (max-width: 600px) {
   #item { width: 60px; height: 60px; top: 60px; }
   #item-icon { font-size: 36px; line-height: 52px; }
+}
+
+/* ---------- Menus ---------- */
+body.in-menu #hud { display: none; }
+#menus { position: fixed; inset: 0; display: none; pointer-events: none; color: #3a2e4f; }
+#menus.show { display: flex; align-items: center; justify-content: center; }
+#menus.pause { background: rgba(40, 30, 60, .45); pointer-events: auto; }
+#menus.title, #menus.controls { background: linear-gradient(180deg, rgba(255,255,255,0) 40%, rgba(58,46,79,.35)); }
+#menus button { font: inherit; cursor: pointer; }
+#menus kbd { font-size: 11px; }
+
+.title-card, .panel { pointer-events: auto; text-align: center; }
+.logo {
+  margin: 0; font-size: clamp(56px, 12vw, 120px); font-weight: 900; font-style: italic; color: #fff;
+  letter-spacing: -2px; line-height: 1;
+  text-shadow: 0 6px 0 #ff6f91, 0 12px 0 #7a5cff, 0 20px 30px rgba(0,0,0,.25);
+  animation: float 3s ease-in-out infinite;
+}
+.logo span { font-style: normal; display: inline-block; animation: wiggle 1.6s ease-in-out infinite; }
+@keyframes float { 50% { transform: translateY(-8px); } }
+@keyframes wiggle { 50% { transform: rotate(-12deg); } }
+.tagline { color: #fff; font-size: 20px; font-weight: 700; margin: 26px 0 22px; text-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.hint { color: #fff; font-size: 13px; opacity: .9; text-shadow: 0 1px 4px rgba(0,0,0,.5); margin-top: 14px; }
+
+.menu-buttons { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.menu-buttons button {
+  min-width: 240px; padding: 12px 24px; border: 0; border-radius: 16px; background: #fff; color: #3a2e4f;
+  font-size: 20px; font-weight: 800; box-shadow: 0 5px 0 #c9b8e8; transition: transform .1s;
+}
+.menu-buttons button.focus, .menu-buttons button:hover {
+  background: #ff6f91; color: #fff; box-shadow: 0 5px 0 #c94f6f; transform: translateY(-2px) scale(1.04);
+}
+
+.panel {
+  background: #fff; border-radius: 24px; padding: 22px 30px; max-width: min(520px, calc(100vw - 32px));
+  box-shadow: 0 10px 0 #7a5cff, 0 20px 40px rgba(0,0,0,.25);
+}
+.panel h2 { margin: 0 0 14px; font-size: 28px; }
+.panel .menu-buttons button { box-shadow: 0 5px 0 #ddd; background: #f4effb; }
+.panel .menu-buttons button.focus, .panel .menu-buttons button:hover { background: #ff6f91; color: #fff; box-shadow: 0 5px 0 #c94f6f; }
+table.controls { margin: 0 auto 10px; text-align: left; border-collapse: collapse; }
+table.controls td { padding: 6px 10px; border-bottom: 1px solid #eee; font-weight: 600; }
+table.controls td:first-child { white-space: nowrap; text-align: right; }
+.panel .tip { font-size: 14px; margin: 10px 0 16px; }
+
+/* Cat select: the 3D cat is in the scene; the UI sits at the bottom. */
+#menus.select { align-items: flex-end; }
+.select-title {
+  position: absolute; top: 18px; left: 0; right: 0; margin: 0; text-align: center; color: #fff;
+  font-size: 34px; font-weight: 900; font-style: italic; text-shadow: 0 4px 0 #ff6f91, 0 8px 16px rgba(0,0,0,.25);
+}
+.select-bar {
+  pointer-events: auto; background: rgba(255,255,255,.94); border-radius: 26px 26px 0 0;
+  padding: 16px 24px 12px; width: min(560px, 100vw); text-align: center; box-shadow: 0 -6px 24px rgba(0,0,0,.15);
+}
+.cat-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cat-pick .arrow { border: 0; background: #f4effb; color: #7a5cff; width: 52px; height: 52px; border-radius: 50%; font-size: 20px; }
+.cat-pick .arrow:hover { background: #7a5cff; color: #fff; }
+.cat-name .name { font-size: 36px; font-weight: 900; line-height: 1.1; }
+.cat-name .trait { font-size: 14px; opacity: .75; margin: 2px 0 8px; }
+.dots { display: flex; gap: 8px; justify-content: center; }
+.dots .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; padding: 0; box-shadow: 0 0 0 1px #ccc; }
+.dots .dot.on { transform: scale(1.35); box-shadow: 0 0 0 2px #3a2e4f; }
+.diff { display: flex; gap: 8px; justify-content: center; margin: 14px 0 12px; }
+.diff button {
+  border: 0; border-radius: 14px; padding: 8px 16px; background: #f4effb; color: #3a2e4f; font-weight: 800; font-size: 16px;
+}
+.diff button small { display: block; font-size: 11px; opacity: .7; font-weight: 600; }
+.diff button.on { background: #7a5cff; color: #fff; }
+.select-bar .go {
+  border: 0; border-radius: 18px; padding: 12px 40px; background: #ff6f91; color: #fff; font-size: 22px; font-weight: 900;
+  box-shadow: 0 5px 0 #c94f6f;
+}
+.select-bar .go:hover { transform: translateY(-2px); }
+.select-bar .hint { color: #3a2e4f; text-shadow: none; opacity: .6; margin: 10px 0 0; }
+
+/* Result card buttons */
+#results .result-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+#results .result-buttons button {
+  font: inherit; font-weight: 800; border: 0; border-radius: 14px; padding: 10px 16px; cursor: pointer;
+  background: #f4effb; color: #3a2e4f;
+}
+#results .result-buttons button:first-child { background: #ff6f91; color: #fff; }
+#results .result-buttons kbd { margin-left: 4px; }
+
+@media (max-width: 600px) {
+  .cat-name .name { font-size: 28px; }
+  .menu-buttons button { min-width: 200px; font-size: 18px; }
+  .select-bar .hint { display: none; }
 }

@@ -168,9 +168,20 @@ export class RaceHud {
           최고 기록 ${formatTime(race.records.bestTotal)}<br />
           최고 랩 ${formatTime(race.records.bestLap)}${newLap ? ' <span class="rec">NEW</span>' : ''}
         </p>
-        <p class="again"><kbd>Enter</kbd> 다시 달리기</p>
+        <div class="result-buttons">
+          <button data-result="again">↻ 다시 달리기 <kbd>Enter</kbd></button>
+          <button data-result="menu">🏠 메인 메뉴 <kbd>Esc</kbd></button>
+        </div>
       </div>`;
     this.results.classList.add('show');
+  }
+
+  /** Result screen buttons: 'again' or 'menu'. */
+  onAction(fn: (action: 'again' | 'menu') => void): void {
+    this.results.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-result]');
+      if (b) fn(b.dataset.result as 'again' | 'menu');
+    });
   }
 
   hideResults(): void {

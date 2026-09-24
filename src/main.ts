@@ -3,8 +3,8 @@ import './style.css';
 import { Input, type KartInput } from './core/input';
 import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
-import { GINGER, RIVALS } from './kart/catKart';
-import { Track } from './world/track';
+import { ROSTER } from './kart/catKart';
+import { SAMPLES, Track } from './world/track';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
 import { Hud } from './ui/hud';
 import { RaceHud } from './ui/raceHud';
@@ -13,16 +13,15 @@ import { RaceSession, TOTAL_LAPS } from './race/raceSession';
 import { IDLE_INPUT, Racer, collideKarts } from './race/racer';
 import { ItemSystem, type ItemEvent } from './items/items';
 import { ItemHud } from './ui/itemHud';
+import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
 
 const STEP = 1 / 60;
 const SKY = 0xbfe6ff;
 /** Grid slot the player starts from (0 = pole, 5 = last). */
 const PLAYER_SLOT = 3;
-/** AI base pace per rival (1 = same top speed as the player). */
-const AI_PACE = [0.94, 0.95, 0.94, 0.93, 0.915];
-/** How hard AI is pulled toward the player (per track sample of gap). */
-const CATCH_UP_AHEAD = 0.0011; // AI in front eases off
-const CATCH_UP_BEHIND = 0.0007; // AI behind pushes harder
+/** How hard AI behind the player is pulled forward (per track sample of gap).
+ *  How hard AI ahead eases off depends on the difficulty. */
+const CATCH_UP_BEHIND = 0.0007;
 
 // --- Renderer & scene ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,20 +47,17 @@ scene.add(sun, sun.target);
 const track = new Track();
 scene.add(track.group);
 
-const player = new Racer('나', GINGER, true, track, { laneBias: 0, driftSkill: 0.8 });
-const rivals = RIVALS.map(
-  (r, i) =>
-    new Racer(r.name, r.style, false, track, {
-      laneBias: 0, // assigned per race in placeOnGrid
-      driftSkill: [0.6, 0.7, 0.6, 0.45, 0.3][i],
-    }),
-);
-rivals.forEach((r, i) => {
-  r.pace = AI_PACE[i];
-  r.rocketChance = [0.4, 0.4, 0.35, 0.3, 0.2][i];
-});
+const player = new Racer(ROSTER[0], true, track);
+const rivals = ROSTER.slice(1).map((c) => new Racer(c, false, track));
 const racers = [player, ...rivals];
-for (const r of racers) scene.add(r.model.root);
+for (const r of racers) scene.add(r.root);
+let difficulty: Difficulty = DIFFICULTIES[1];
+
+/** Player becomes `catIndex`; everyone else in the roster races as AI. */
+function assignCats(catIndex: number): void {
+  player.setCharacter(ROSTER[catIndex]);
+  ROSTER.filter((_, i) => i !== catIndex).forEach((c, i) => rivals[i].setCharacter(c));
+}
 
 const items = new ItemSystem(track);
 scene.add(items.group);
@@ -75,7 +71,6 @@ const input = new Input();
 const hud = new Hud();
 const race = new RaceSession();
 const raceHud = new RaceHud(track);
-let firstStart = true;
 /** Race clock that keeps running after the player finishes, for AI finish times. */
 let clock = 0;
 /** Test hook: replaces keyboard input (used by automated play-tests). */
@@ -102,8 +97,50 @@ function restartRace(): void {
   race.restart();
   raceHud.hideResults();
   items.clear();
+  mode = 'race';
+  input.clearPresses();
 }
-placeOnGrid();
+
+// --- Game flow: title → cat select → race ⇄ pause ---
+type Mode = 'title' | 'select' | 'race' | 'paused';
+let mode: Mode = 'title';
+let menuTime = 0;
+
+const menus = new Menus(ROSTER, {
+  onPreview: (i) => assignCats(i),
+  onStart: (i, d) => {
+    assignCats(i);
+    difficulty = d;
+    restartRace();
+  },
+  onResume: () => {
+    mode = 'race';
+    input.clearPresses();
+  },
+  onRestart: () => restartRace(),
+  onQuit: () => goToTitle(),
+});
+
+function goToTitle(): void {
+  mode = 'title';
+  raceHud.hideResults();
+  items.clear();
+  assignCats(menus.cat);
+  placeOnGrid();
+  menus.show('title');
+  input.clearPresses();
+}
+
+function pause(): void {
+  if (mode !== 'race' || race.phase === 'finished') return;
+  mode = 'paused';
+  input.clearPresses(); // don't let drift/steer taps from the race drive the menu
+  menus.show('pause');
+}
+document.addEventListener('visibilitychange', () => document.hidden && pause());
+window.addEventListener('blur', pause);
+raceHud.onAction((a) => (a === 'again' ? restartRace() : goToTitle()));
+goToTitle();
 
 /** Finished racers by finish time, then everyone else by distance covered. */
 function standings(): Racer[] {
@@ -183,8 +220,6 @@ function step(): void {
     raceHud.go();
     if (race.rocketStart) player.physics.rocketStart();
     for (const r of rivals) if (Math.random() < r.rocketChance) r.physics.rocketStart();
-    if (firstStart) hud.setHelp(false);
-    firstStart = false;
   }
   const others = racers.map((r) => r.physics);
   const racing = race.phase !== 'countdown';
@@ -204,9 +239,9 @@ function step(): void {
     r.lastInput = racing ? r.ai.drive(r.physics, r.tracker, others, STEP, hazards) : IDLE_INPUT;
     // Catch-up: AI far ahead eases off, AI far behind pushes a little harder.
     const gap = r.tracker.distance - playerDist;
-    const pull = 1 - gap * (gap > 0 ? CATCH_UP_AHEAD : CATCH_UP_BEHIND);
+    const pull = 1 - gap * (gap > 0 ? difficulty.catchUpAhead : CATCH_UP_BEHIND);
     const catchUp = race.phase === 'racing' ? Math.max(0.86, Math.min(1.1, pull)) : 1;
-    r.physics.speedMul = r.pace * catchUp;
+    r.physics.speedMul = r.pace * difficulty.aiPace * catchUp;
   }
 
   for (const r of racers) {
@@ -242,6 +277,32 @@ function step(): void {
   player.lastInput.driftPressed = false;
 }
 
+// --- Menu cameras ---
+const MENU_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Enter', 'NumpadEnter', 'Space', 'Escape', 'KeyP'];
+const lookAt = new THREE.Vector3();
+
+function menuCamera(dt: number): void {
+  menuTime += dt;
+  const cam = chase.camera;
+  if (menus.screen !== 'select') {
+    // Slow, high orbit around the start grid.
+    const c = track.points[SAMPLES - 8];
+    const a = menuTime * 0.1;
+    cam.position.set(c.x + Math.sin(a) * 26, 15, c.z + Math.cos(a) * 26);
+    lookAt.set(c.x, 1, c.z);
+  } else {
+    // Close-up of the player's cat, swinging gently from side to side.
+    const k = player.physics;
+    const f = k.forward;
+    const side = Math.sin(menuTime * 0.6) * 2.5;
+    cam.position.set(k.pos.x + f.x * 5.5 + f.z * side, k.pos.y + 2.4, k.pos.z + f.z * 5.5 - f.x * side);
+    lookAt.set(k.pos.x - f.z * 0.9, k.pos.y + 1.3, k.pos.z + f.x * 0.9);
+  }
+  cam.fov = 55;
+  cam.updateProjectionMatrix();
+  cam.lookAt(lookAt);
+}
+
 // --- Main loop: fixed-step physics, interpolated rendering ---
 let acc = 0;
 let last = performance.now();
@@ -251,23 +312,34 @@ function frame(now: number): void {
   last = now;
   acc += dt;
 
-  if (input.consumePress('KeyH')) hud.toggleHelp();
-  const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
-  if (enter && race.phase === 'finished') restartRace();
-
-  while (acc >= STEP) {
-    step();
-    acc -= STEP;
+  if (mode === 'race') {
+    if (input.consumePress('KeyH')) hud.toggleHelp();
+    const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
+    const esc = input.consumePress('Escape') || input.consumePress('KeyP');
+    if (race.phase === 'finished') {
+      if (enter) restartRace();
+      else if (esc) goToTitle();
+    } else if (esc) pause();
+  } else {
+    for (const code of MENU_KEYS) if (input.consumePress(code)) menus.key(code);
   }
 
-  const alpha = acc / STEP;
+  if (mode === 'race') {
+    while (acc >= STEP) {
+      step();
+      acc -= STEP;
+    }
+  } else acc = 0;
+
+  const alpha = mode === 'race' ? acc / STEP : 1;
   for (const r of racers) {
     r.interpolate(alpha);
     r.model.update(r.physics, r.lastInput.steer, dt, r.renderPos, r.renderYaw);
     frameEffects(r);
   }
-  sparks.update(dt);
-  chase.update(player.physics, player.renderPos, dt);
+  if (mode !== 'paused') sparks.update(dt);
+  if (mode === 'race') chase.update(player.physics, player.renderPos, dt);
+  else if (mode !== 'paused') menuCamera(dt);
   hud.update(player.physics, dt);
   itemHud.update(player, dt);
   raceHud.update(race, player, standings());
@@ -284,7 +356,7 @@ requestAnimationFrame(frame);
 Object.assign(window, {
   catcart: {
     player, rivals, racers, track, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings, items,
-    step, restartRace,
+    step, restartRace, menus,
     setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
   },
 });

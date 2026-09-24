@@ -25,23 +25,30 @@ export class Input {
   private smoothSteer = 0;
   private prevDrift = false;
   private prevItem = false;
-  private pressedOnce = new Set<string>();
+  /** Presses not yet consumed, counted so fast double taps aren't merged. */
+  private presses = new Map<string, number>();
 
   constructor() {
     window.addEventListener('keydown', (e) => {
-      if (Object.values(KEYS).some((k) => k.includes(e.code))) e.preventDefault();
-      if (!this.down.has(e.code)) this.pressedOnce.add(e.code);
+      if (Object.values(KEYS).some((k) => k.includes(e.code)) || e.code === 'Escape') e.preventDefault();
+      if (!this.down.has(e.code)) this.presses.set(e.code, (this.presses.get(e.code) ?? 0) + 1);
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
     window.addEventListener('blur', () => this.down.clear());
   }
 
+  /** Forgets presses that nobody consumed (call when switching screens). */
+  clearPresses(): void {
+    this.presses.clear();
+  }
+
   /** Returns true once per key press (for toggles like the help panel). */
   consumePress(code: string): boolean {
-    const had = this.pressedOnce.has(code);
-    this.pressedOnce.delete(code);
-    return had;
+    const n = this.presses.get(code) ?? 0;
+    if (n > 1) this.presses.set(code, n - 1);
+    else this.presses.delete(code);
+    return n > 0;
   }
 
   private any(codes: string[]): boolean {

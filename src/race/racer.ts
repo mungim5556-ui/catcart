@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { AiDriver, type AiProfile } from '../ai/aiDriver';
-import { CatKart, type CatStyle } from '../kart/catKart';
+import { AiDriver } from '../ai/aiDriver';
+import { CatKart, type CatCharacter, type CatStyle } from '../kart/catKart';
 import { KartPhysics } from '../kart/kartPhysics';
 import type { KartInput } from '../core/input';
 import type { Track } from '../world/track';
@@ -12,7 +12,11 @@ const IDLE: KartInput = { throttle: 0, brake: 0, steer: 0, drift: false, driftPr
 /** One kart in the race: physics, model, lap tracking and (for AI) a driver. */
 export class Racer implements ItemHolder {
   readonly physics = new KartPhysics();
-  readonly model: CatKart;
+  /** Scene node that holds the current model (swapped when the cat changes). */
+  readonly root = new THREE.Group();
+  model: CatKart;
+  name = '';
+  style!: CatStyle;
   readonly tracker: LapTracker;
   readonly ai: AiDriver;
   /** Base pace for AI (difficulty/personality); catch-up is applied on top. */
@@ -30,16 +34,31 @@ export class Racer implements ItemHolder {
   renderYaw = 0;
 
   constructor(
-    readonly name: string,
-    readonly style: CatStyle,
+    character: CatCharacter,
     readonly isPlayer: boolean,
     track: Track,
-    profile: AiProfile,
   ) {
-    this.model = new CatKart(style);
+    this.model = new CatKart(character.style);
+    this.root.add(this.model.root);
     this.tracker = new LapTracker(track);
     // The player gets a driver too: it takes over after the finish line.
-    this.ai = new AiDriver(track, profile);
+    this.ai = new AiDriver(track, { laneBias: 0, driftSkill: 0.8 });
+    this.setCharacter(character);
+  }
+
+  /** Switches which cat this racer is (model, name and AI personality). */
+  setCharacter(c: CatCharacter): void {
+    this.name = this.isPlayer ? `${c.name} (나)` : c.name;
+    if (this.style !== c.style) {
+      this.root.remove(this.model.root);
+      this.model.dispose();
+      this.model = new CatKart(c.style);
+      this.root.add(this.model.root);
+      this.style = c.style;
+    }
+    this.pace = c.ai.pace;
+    this.rocketChance = c.ai.rocketChance;
+    if (!this.isPlayer) this.ai.profile.driftSkill = c.ai.driftSkill;
   }
 
   place(pose: { pos: THREE.Vector3; yaw: number }): void {

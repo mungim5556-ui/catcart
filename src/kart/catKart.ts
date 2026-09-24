@@ -15,13 +15,53 @@ export const GINGER: CatStyle = {
   furLight: 0xfff1dc,
 };
 
-/** AI rivals. Names are shown on the standings board. */
-export const RIVALS: { name: string; style: CatStyle }[] = [
-  { name: '까망이', style: { kart: 0x7a5cff, kartTrim: 0xffe066, fur: 0x2f2b36, furLight: 0x6d6778 } },
-  { name: '설기', style: { kart: 0x4fc3ff, kartTrim: 0xffffff, fur: 0xf7f4ee, furLight: 0xffffff } },
-  { name: '고등어', style: { kart: 0x52c77a, kartTrim: 0xffffff, fur: 0x8f929c, furLight: 0xd9dbe0 } },
-  { name: '삼색이', style: { kart: 0xffb300, kartTrim: 0x3a2e4f, fur: 0xe07b39, furLight: 0xffffff } },
-  { name: '샴', style: { kart: 0xff5a6e, kartTrim: 0xfff1dc, fur: 0xe9dcc4, furLight: 0x6b4f3f } },
+/** How a cat drives when the computer controls it. */
+export interface AiTraits {
+  pace: number; // top-speed scale (1 = same as the player)
+  driftSkill: number; // chance to drift a big corner
+  rocketChance: number; // chance of a rocket start
+}
+
+export interface CatCharacter {
+  name: string;
+  trait: string;
+  style: CatStyle;
+  ai: AiTraits;
+}
+
+/** Every selectable cat. Whoever the player doesn't pick races as AI. */
+export const ROSTER: CatCharacter[] = [
+  { name: '치즈', trait: '호기심 많은 치즈냥', style: GINGER, ai: { pace: 0.935, driftSkill: 0.55, rocketChance: 0.35 } },
+  {
+    name: '까망이',
+    trait: '밤을 달리는 검은 번개',
+    style: { kart: 0x7a5cff, kartTrim: 0xffe066, fur: 0x2f2b36, furLight: 0x6d6778 },
+    ai: { pace: 0.94, driftSkill: 0.6, rocketChance: 0.4 },
+  },
+  {
+    name: '설기',
+    trait: '새하얀 모범생',
+    style: { kart: 0x4fc3ff, kartTrim: 0xffffff, fur: 0xf7f4ee, furLight: 0xffffff },
+    ai: { pace: 0.95, driftSkill: 0.7, rocketChance: 0.4 },
+  },
+  {
+    name: '고등어',
+    trait: '느긋한 줄무늬 대장',
+    style: { kart: 0x52c77a, kartTrim: 0xffffff, fur: 0x8f929c, furLight: 0xd9dbe0 },
+    ai: { pace: 0.94, driftSkill: 0.6, rocketChance: 0.35 },
+  },
+  {
+    name: '삼색이',
+    trait: '행운을 부르는 삼색냥',
+    style: { kart: 0xffb300, kartTrim: 0x3a2e4f, fur: 0xe07b39, furLight: 0xffffff },
+    ai: { pace: 0.93, driftSkill: 0.45, rocketChance: 0.3 },
+  },
+  {
+    name: '샴',
+    trait: '도도한 파란 눈의 귀족',
+    style: { kart: 0xff5a6e, kartTrim: 0xfff1dc, fur: 0xe9dcc4, furLight: 0x6b4f3f },
+    ai: { pace: 0.915, driftSkill: 0.3, rocketChance: 0.2 },
+  },
 ];
 
 const mat = (color: number) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.8 });
@@ -162,6 +202,16 @@ export class CatKart {
       this.wheels.push(wheel);
       if (front) this.frontPivots.push(pivot);
     }
+  }
+
+  /** Frees GPU resources when this model is swapped out. */
+  dispose(): void {
+    this.root.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        o.geometry.dispose();
+        (o.material as THREE.Material).dispose();
+      }
+    });
   }
 
   /** Mirrors physics state into the model and adds juicy secondary motion. */
