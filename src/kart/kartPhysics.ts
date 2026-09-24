@@ -30,11 +30,11 @@ export const KART = {
   gravity: 32,
   hopVelocity: 5.5,
   driftMinSpeed: 9,
-  /** Seconds of drift needed for each mini-turbo level (blue, orange, purple). */
   /** Drift turn rate (rad/s) when steering out of / neutral / into the drift. */
   driftTurnMin: 0.05,
   driftTurnBase: 0.38,
   driftTurnMax: 1.5,
+  /** Seconds of drift needed for each mini-turbo level (blue, orange, purple). */
   driftLevels: [0.8, 1.7, 2.7],
   /** Boost duration awarded for each mini-turbo level. */
   driftBoost: [0, 0.6, 1.1, 1.7],
@@ -64,6 +64,8 @@ export class KartPhysics {
   driftCharge = 0;
   boostTime = 0;
   offroad = false;
+  /** Per-kart speed scale (AI skill, catch-up); 1 = normal. */
+  speedMul = 1;
 
   /** Set for one step when something visual should react. */
   events: StepEvents = { landed: 0, hit: false, boost: null, hop: false };
@@ -116,7 +118,7 @@ export class KartPhysics {
     const boosting = this.boostTime > 0;
     this.boostTime = Math.max(0, this.boostTime - dt);
 
-    let top = boosting ? KART.boostSpeed : KART.maxSpeed;
+    let top = (boosting ? KART.boostSpeed : KART.maxSpeed) * this.speedMul;
     if (this.offroad && !boosting) top *= KART.offroadFactor;
 
     // --- Longitudinal ---

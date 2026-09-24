@@ -1,6 +1,8 @@
 import type { Track } from '../world/track';
-import type { LapTracker } from '../race/lapTracker';
+import type { Racer } from '../race/racer';
 import { RaceSession, TOTAL_LAPS, formatTime } from '../race/raceSession';
+
+const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -13,6 +15,9 @@ export class RaceHud {
   private count = $('countdown');
   private wrong = $('wrongway');
   private results = $('results');
+  private pos = $('position');
+  private posTotal = $('position-total');
+  private lastPos = 0;
   private map = $('minimap') as HTMLCanvasElement;
   private mapCtx = this.map.getContext('2d')!;
   private mapBg: HTMLCanvasElement;
@@ -62,7 +67,21 @@ export class RaceHud {
     g.fillRect(sx - 4, sy - 4, 8, 8);
   }
 
-  update(race: RaceSession, tracker: LapTracker, kartX: number, kartZ: number, kartYaw: number): void {
+  update(race: RaceSession, player: Racer, standings: Racer[]): void {
+    const tracker = player.tracker;
+    const kartX = player.renderPos.x;
+    const kartZ = player.renderPos.z;
+    const kartYaw = player.renderYaw;
+    const place = standings.indexOf(player) + 1;
+    if (place !== this.lastPos) {
+      this.pos.textContent = `${place}위`;
+      this.pos.classList.remove('bump');
+      void this.pos.offsetWidth;
+      this.pos.classList.add('bump');
+      this.lastPos = place;
+    }
+    this.posTotal.textContent = `/ ${standings.length}`;
+
     this.lap.textContent = `${race.currentLap}/${TOTAL_LAPS}`;
     this.time.textContent = formatTime(race.time);
     this.splits.innerHTML = race.lapTimes
@@ -81,6 +100,18 @@ export class RaceHud {
     const g = this.mapCtx;
     g.clearRect(0, 0, this.map.width, this.map.height);
     g.drawImage(this.mapBg, 0, 0);
+    // Rivals as coloured dots, player as an arrow on top.
+    for (const r of standings) {
+      if (r === player) continue;
+      const [rx, ry] = this.project(r.renderPos.x, r.renderPos.z);
+      g.fillStyle = hex(r.style.kart);
+      g.strokeStyle = '#fff';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.arc(rx, ry, 4.5, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
     const [x, y] = this.project(kartX, kartZ);
     // Heading arrow (screen space: x mirrored, z flipped).
     const dx = -Math.sin(kartYaw);
@@ -108,8 +139,16 @@ export class RaceHud {
     this.count.classList.add('pop');
   }
 
-  showResults(race: RaceSession): void {
+  showResults(race: RaceSession, standings: Racer[], player: Racer): void {
     const prev = race.prevRecords;
+    const place = standings.indexOf(player) + 1;
+    const board = standings
+      .map((r, i) => {
+        const time = r.finishTime !== null ? formatTime(r.finishTime) : '주행 중…';
+        const dot = `<i style="background:${hex(r.style.kart)}"></i>`;
+        return `<tr class="${r === player ? 'me' : ''}"><td>${i + 1}</td><td>${dot}${r.name}</td><td>${time}</td></tr>`;
+      })
+      .join('');
     const newTotal = prev.bestTotal === null || race.time < prev.bestTotal;
     const fastest = Math.min(...race.lapTimes);
     const newLap = prev.bestLap === null || fastest < prev.bestLap;
@@ -121,9 +160,10 @@ export class RaceHud {
       .join('');
     this.results.innerHTML = `
       <div class="card">
-        <h2>🏁 완주!</h2>
+        <h2>${place === 1 ? '🏆' : '🏁'} ${place}위로 완주!</h2>
         <div class="total">${formatTime(race.time)}${newTotal ? '<span class="rec">신기록!</span>' : ''}</div>
-        <table>${rows}</table>
+        <table class="board">${board}</table>
+        <table class="laps">${rows}</table>
         <p class="bests">
           최고 기록 ${formatTime(race.records.bestTotal)}<br />
           최고 랩 ${formatTime(race.records.bestLap)}${newLap ? ' <span class="rec">NEW</span>' : ''}

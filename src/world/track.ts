@@ -143,9 +143,20 @@ export class Track implements KartWorld {
     return this.pose(index);
   }
 
-  /** Start grid position. */
+  /** Start grid position (slot 0 = pole). Two columns, staggered, behind the line. */
+  gridPose(slot: number): { pos: THREE.Vector3; yaw: number } {
+    const row = Math.floor(slot / 2);
+    const col = slot % 2;
+    const p = this.pose(SAMPLES - 3 - row * 4 - col * 2);
+    const t = this.tangents[SAMPLES - 3 - row * 4 - col * 2];
+    const side = col === 0 ? 3.5 : -3.5;
+    p.pos.x += t.z * side;
+    p.pos.z -= t.x * side;
+    return p;
+  }
+
   startPose(): { pos: THREE.Vector3; yaw: number } {
-    return this.pose(SAMPLES - 6);
+    return this.gridPose(0);
   }
 
   // ---------- helpers ----------

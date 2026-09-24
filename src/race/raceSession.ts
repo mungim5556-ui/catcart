@@ -81,7 +81,7 @@ export class RaceSession {
         // Rocket start: press accelerate around when "1" appears — not earlier.
         this.rocketStart = this.throttleHeld > 0.1 && this.throttleHeld < 1.1;
       }
-      return { input: { ...input, throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false }, started };
+      return { input: { ...input, throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, reset: false }, started };
     }
     if (this.phase === 'racing') {
       this.time += dt;

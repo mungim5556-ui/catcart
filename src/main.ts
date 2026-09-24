@@ -1,19 +1,25 @@
 import * as THREE from 'three';
 import './style.css';
-import { Input } from './core/input';
-import type { KartInput } from './core/input';
+import { Input, type KartInput } from './core/input';
 import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
-import { CatKart } from './kart/catKart';
+import { GINGER, RIVALS } from './kart/catKart';
 import { Track } from './world/track';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
 import { Hud } from './ui/hud';
 import { RaceHud } from './ui/raceHud';
 import { LapTracker } from './race/lapTracker';
 import { RaceSession, TOTAL_LAPS } from './race/raceSession';
+import { IDLE_INPUT, Racer, collideKarts } from './race/racer';
 
 const STEP = 1 / 60;
 const SKY = 0xbfe6ff;
+/** Grid slot the player starts from (0 = pole, 5 = last). */
+const PLAYER_SLOT = 3;
+/** AI base pace per rival (1 = same top speed as the player). */
+const AI_PACE = [0.965, 0.95, 0.935, 0.92, 0.905];
+/** How hard AI is pulled toward the player (per track sample of gap). */
+const CATCH_UP = 0.0007;
 
 // --- Renderer & scene ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -35,45 +41,67 @@ Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, n
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
-// --- World ---
+// --- World & racers ---
 const track = new Track();
 scene.add(track.group);
 
-const kart = new KartPhysics();
-const start = track.startPose();
-kart.place(start.pos, start.yaw);
+const player = new Racer('나', GINGER, true, track, { laneBias: 0, driftSkill: 0.8 });
+const rivals = RIVALS.map(
+  (r, i) =>
+    new Racer(r.name, r.style, false, track, {
+      laneBias: [-3, 2.5, -1, 3.5, 0.5][i],
+      driftSkill: [0.9, 0.75, 0.6, 0.45, 0.3][i],
+    }),
+);
+rivals.forEach((r, i) => {
+  r.pace = AI_PACE[i];
+  r.rocketChance = [0.7, 0.5, 0.4, 0.3, 0.2][i];
+});
+const racers = [player, ...rivals];
+for (const r of racers) scene.add(r.model.root);
 
-const cat = new CatKart();
-scene.add(cat.root);
-
-const sparks = new Sparks();
+const sparks = new Sparks(320);
 scene.add(sparks.group);
 
 const chase = new ChaseCamera(window.innerWidth / window.innerHeight);
-chase.snap(kart);
-
 const input = new Input();
 const hud = new Hud();
-
-const prevPos = kart.pos.clone();
-const renderPos = new THREE.Vector3();
-let prevYaw = kart.yaw;
-
-const tracker = new LapTracker(track);
-tracker.reset(kart.pos);
 const race = new RaceSession();
 const raceHud = new RaceHud(track);
 let firstStart = true;
+/** Race clock that keeps running after the player finishes, for AI finish times. */
+let clock = 0;
+/** Test hook: replaces keyboard input (used by automated play-tests). */
+let inputOverride: (() => KartInput) | null = null;
+
+function placeOnGrid(): void {
+  // Rivals fill the other slots, fastest nearest the front.
+  let slot = 0;
+  for (const r of rivals) {
+    if (slot === PLAYER_SLOT) slot++;
+    r.place(track.gridPose(slot++));
+  }
+  player.place(track.gridPose(PLAYER_SLOT));
+  chase.snap(player.physics);
+}
 
 function restartRace(): void {
-  const s = track.startPose();
-  kart.place(s.pos, s.yaw);
-  tracker.reset(kart.pos);
+  placeOnGrid();
+  clock = 0;
   race.restart();
   raceHud.hideResults();
-  chase.snap(kart);
-  prevPos.copy(kart.pos);
-  prevYaw = kart.yaw;
+}
+placeOnGrid();
+
+/** Finished racers by finish time, then everyone else by distance covered. */
+function standings(): Racer[] {
+  return [...racers].sort((a, b) => {
+    if (a.finished || b.finished) {
+      if (a.finished && b.finished) return a.finishTime! - b.finishTime!;
+      return a.finished ? -1 : 1;
+    }
+    return b.tracker.distance - a.tracker.distance;
+  });
 }
 
 window.addEventListener('resize', () => {
@@ -82,8 +110,9 @@ window.addEventListener('resize', () => {
   chase.camera.updateProjectionMatrix();
 });
 
-// --- Per-physics-step effects ---
-function stepEffects(): void {
+// --- Effects ---
+function playerStepEffects(): void {
+  const kart = player.physics;
   const e = kart.events;
   if (e.boost !== null) {
     if (e.boost === 'pad') hud.flash('부스트!', '#ffb300');
@@ -98,8 +127,11 @@ function stepEffects(): void {
   }
 }
 
-function frameEffects(): void {
-  const rear = cat.rearWheelPoints();
+function frameEffects(r: Racer): void {
+  const kart = r.physics;
+  // Skip particles for karts far from the camera.
+  if (!r.isPlayer && kart.pos.distanceToSquared(player.physics.pos) > 80 * 80) return;
+  const rear = r.model.rearWheelPoints();
   if (kart.drifting && kart.grounded) {
     const color = DRIFT_COLORS[kart.driftLevel];
     const size = kart.driftLevel ? 1.3 : 1.8;
@@ -109,10 +141,75 @@ function frameEffects(): void {
   }
 }
 
+// --- Simulation step ---
+function onFinish(): void {
+  if (race.phase === 'finished') raceHud.showResults(race, standings(), player);
+}
+
+function step(): void {
+  for (const r of racers) r.beginStep();
+
+  // Player input goes through the race session (countdown lock, timing).
+  const gated = race.step(STEP, inputOverride ? inputOverride() : input.read(STEP));
+  if (gated.started) {
+    raceHud.go();
+    if (race.rocketStart) player.physics.rocketStart();
+    for (const r of rivals) if (Math.random() < r.rocketChance) r.physics.rocketStart();
+    if (firstStart) hud.setHelp(false);
+    firstStart = false;
+  }
+  const others = racers.map((r) => r.physics);
+  const racing = race.phase !== 'countdown';
+
+  // After the finish line the player's kart drives itself.
+  player.lastInput =
+    race.phase === 'finished' ? player.ai.drive(player.physics, player.tracker, others, STEP) : gated.input;
+  player.physics.speedMul = race.phase === 'finished' ? 0.85 : 1;
+
+  const playerDist = player.tracker.distance;
+  for (const r of rivals) {
+    r.lastInput = racing ? r.ai.drive(r.physics, r.tracker, others, STEP) : IDLE_INPUT;
+    // Catch-up: AI far ahead eases off, AI far behind pushes a little harder.
+    const gap = r.tracker.distance - playerDist;
+    const catchUp = race.phase === 'racing' ? Math.max(0.88, Math.min(1.1, 1 - gap * CATCH_UP)) : 1;
+    r.physics.speedMul = r.pace * catchUp;
+  }
+
+  for (const r of racers) {
+    r.physics.step(STEP, r.lastInput, track);
+    if (r.lastInput.reset) {
+      r.snapRender();
+      if (r.isPlayer) chase.snap(r.physics);
+    }
+  }
+  for (const r of collideKarts(racers, KART.radius)) {
+    r.physics.events.hit = true;
+    r.physics.drifting = false;
+  }
+  playerStepEffects();
+
+  for (const r of racers) {
+    if (!r.tracker.update(r.physics.pos, r.physics.vel, STEP)) continue;
+    if (r.isPlayer) {
+      if (race.completeLap()) {
+        player.finishTime = race.time;
+        onFinish();
+      } else if (race.currentLap === TOTAL_LAPS) hud.flash('마지막 랩!', '#ff6f91');
+      else hud.flash(`LAP ${race.currentLap}`, '#ffffff');
+    } else if (!r.finished && r.tracker.lap >= TOTAL_LAPS && race.phase !== 'countdown') {
+      r.finishTime = clock;
+      onFinish();
+    }
+  }
+  if (race.phase === 'racing') clock = race.time;
+  else if (race.phase === 'finished') clock += STEP;
+  // Drift press edge is consumed by the first step that sees it.
+  player.lastInput.driftPressed = false;
+}
+
 // --- Main loop: fixed-step physics, interpolated rendering ---
 let acc = 0;
 let last = performance.now();
-let lastInput: KartInput = input.read(0);
 
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
@@ -124,48 +221,23 @@ function frame(now: number): void {
   if (enter && race.phase === 'finished') restartRace();
 
   while (acc >= STEP) {
-    prevPos.copy(kart.pos);
-    prevYaw = kart.yaw;
-    const gated = race.step(STEP, input.read(STEP));
-    lastInput = gated.input;
-    if (gated.started) {
-      raceHud.go();
-      if (race.rocketStart) kart.rocketStart();
-      if (firstStart) hud.setHelp(false);
-      firstStart = false;
-    }
-    kart.step(STEP, lastInput, track);
-    stepEffects();
-    if (tracker.update(kart.pos, kart.vel, STEP)) {
-      if (race.completeLap()) raceHud.showResults(race);
-      else if (race.currentLap === TOTAL_LAPS) hud.flash('마지막 랩!', '#ff6f91');
-      else hud.flash(`LAP ${race.currentLap}`, '#ffffff');
-    }
-    if (lastInput.reset) {
-      prevPos.copy(kart.pos);
-      prevYaw = kart.yaw;
-      chase.snap(kart);
-    }
-    // Drift press edge is consumed by the first step that sees it.
-    lastInput.driftPressed = false;
+    step();
     acc -= STEP;
   }
 
   const alpha = acc / STEP;
-  renderPos.lerpVectors(prevPos, kart.pos, alpha);
-  let dy = kart.yaw - prevYaw;
-  dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-  const renderYaw = prevYaw + dy * alpha;
-
-  cat.update(kart, lastInput.steer, dt, renderPos, renderYaw);
-  frameEffects();
+  for (const r of racers) {
+    r.interpolate(alpha);
+    r.model.update(r.physics, r.lastInput.steer, dt, r.renderPos, r.renderYaw);
+    frameEffects(r);
+  }
   sparks.update(dt);
-  chase.update(kart, renderPos, dt);
-  hud.update(kart, dt);
-  raceHud.update(race, tracker, renderPos.x, renderPos.z, renderYaw);
+  chase.update(player.physics, player.renderPos, dt);
+  hud.update(player.physics, dt);
+  raceHud.update(race, player, standings());
 
-  sun.position.set(renderPos.x + 30, 60, renderPos.z + 20);
-  sun.target.position.copy(renderPos);
+  sun.position.set(player.renderPos.x + 30, 60, player.renderPos.z + 20);
+  sun.target.position.copy(player.renderPos);
 
   renderer.render(scene, chase.camera);
   requestAnimationFrame(frame);
@@ -173,4 +245,10 @@ function frame(now: number): void {
 requestAnimationFrame(frame);
 
 // Handy for tuning from the browser console: window.catcart.KART.maxSpeed = 30
-Object.assign(window, { catcart: { kart, track, scene, KART, KartPhysics, race, tracker, raceHud, LapTracker, RaceSession } });
+Object.assign(window, {
+  catcart: {
+    player, rivals, racers, track, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
+    step, restartRace,
+    setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
+  },
+});

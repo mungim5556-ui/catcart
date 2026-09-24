@@ -128,3 +128,23 @@ kbd { background: #fff; color: #333; border-radius: 4px; padding: 0 5px; font-si
   #minimap { width: 110px; height: 110px; }
   #countdown { font-size: 90px; }
 }
+
+#place {
+  position: absolute; left: 20px; bottom: 196px; font-weight: 900; font-style: italic;
+  text-shadow: 0 4px 0 #7a5cff, 0 8px 16px rgba(0,0,0,.3);
+}
+#position { font-size: 64px; display: inline-block; }
+#position.bump { animation: bump .35s ease-out; }
+@keyframes bump { 40% { transform: scale(1.3); } }
+#place small { font-size: 22px; margin-left: 4px; }
+#results table.board { min-width: 260px; }
+#results table.board td { text-align: left; }
+#results table.board td:first-child { text-align: right; opacity: .6; }
+#results table.board td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+#results table.board tr.me td { color: #ff6f91; }
+#results table.board i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+#results table.laps { font-size: 13px; opacity: .8; }
+@media (max-width: 600px) {
+  #place { bottom: 134px; }
+  #position { font-size: 42px; }
+}

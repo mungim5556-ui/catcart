@@ -15,6 +15,15 @@ export const GINGER: CatStyle = {
   furLight: 0xfff1dc,
 };
 
+/** AI rivals. Names are shown on the standings board. */
+export const RIVALS: { name: string; style: CatStyle }[] = [
+  { name: '까망이', style: { kart: 0x7a5cff, kartTrim: 0xffe066, fur: 0x2f2b36, furLight: 0x6d6778 } },
+  { name: '설기', style: { kart: 0x4fc3ff, kartTrim: 0xffffff, fur: 0xf7f4ee, furLight: 0xffffff } },
+  { name: '고등어', style: { kart: 0x52c77a, kartTrim: 0xffffff, fur: 0x8f929c, furLight: 0xd9dbe0 } },
+  { name: '삼색이', style: { kart: 0xffb300, kartTrim: 0x3a2e4f, fur: 0xe07b39, furLight: 0xffffff } },
+  { name: '샴', style: { kart: 0xff5a6e, kartTrim: 0xfff1dc, fur: 0xe9dcc4, furLight: 0x6b4f3f } },
+];
+
 const mat = (color: number) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.8 });
 
 function mesh(geo: THREE.BufferGeometry, material: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
