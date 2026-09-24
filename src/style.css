@@ -251,3 +251,18 @@ table.controls td:first-child { white-space: nowrap; text-align: right; }
   .menu-buttons button { min-width: 200px; font-size: 18px; }
   .select-bar .hint { display: none; }
 }
+
+/* Short screens (e.g. a browser next to a terminal): keep the select panel compact. */
+@media (max-height: 700px) {
+  .select-title { font-size: 24px; top: 8px; }
+  .select-bar { padding: 8px 16px 8px; border-radius: 20px 20px 0 0; }
+  .cat-pick .arrow { width: 40px; height: 40px; font-size: 16px; }
+  .cat-name .name { font-size: 26px; }
+  .cat-name .trait { font-size: 12px; margin: 0 0 4px; }
+  .dots .dot { width: 12px; height: 12px; }
+  .diff { margin: 8px 0 8px; }
+  .diff button { padding: 5px 12px; font-size: 14px; }
+  .diff button small { display: inline; margin-left: 4px; }
+  .select-bar .go { padding: 8px 32px; font-size: 18px; }
+  .select-bar .hint { display: none; }
+}

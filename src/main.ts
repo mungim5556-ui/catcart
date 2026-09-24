@@ -292,12 +292,21 @@ function menuCamera(dt: number): void {
     lookAt.set(c.x, 1, c.z);
   } else {
     // Close-up of the player's cat, swinging gently from side to side.
+    // The select panel covers the bottom of the screen, so frame the cat in
+    // the space above it (view offset) and back off when that space is small.
+    const h = window.innerHeight;
+    const barH = document.querySelector<HTMLElement>('.select-bar')?.offsetHeight ?? 0;
+    const titleH = 60;
+    const covered = Math.min(0.8, (barH + titleH) / h);
+    const dist = 5 + 5 * covered;
     const k = player.physics;
     const f = k.forward;
-    const side = Math.sin(menuTime * 0.6) * 2.5;
-    cam.position.set(k.pos.x + f.x * 5.5 + f.z * side, k.pos.y + 2.4, k.pos.z + f.z * 5.5 - f.x * side);
-    lookAt.set(k.pos.x - f.z * 0.9, k.pos.y + 1.3, k.pos.z + f.x * 0.9);
+    const side = Math.sin(menuTime * 0.6) * 2;
+    cam.position.set(k.pos.x + f.x * dist + f.z * side, k.pos.y + 2.2, k.pos.z + f.z * dist - f.x * side);
+    lookAt.set(k.pos.x, k.pos.y + 1.1, k.pos.z);
+    cam.setViewOffset(window.innerWidth, h, 0, (barH - titleH) / 2, window.innerWidth, h);
   }
+  if (menus.screen !== 'select' && cam.view?.enabled) cam.clearViewOffset();
   cam.fov = 55;
   cam.updateProjectionMatrix();
   cam.lookAt(lookAt);
@@ -338,7 +347,10 @@ function frame(now: number): void {
     frameEffects(r);
   }
   if (mode !== 'paused') sparks.update(dt);
-  if (mode === 'race') chase.update(player.physics, player.renderPos, dt);
+  if (mode === 'race') {
+    if (chase.camera.view?.enabled) chase.camera.clearViewOffset();
+    chase.update(player.physics, player.renderPos, dt);
+  }
   else if (mode !== 'paused') menuCamera(dt);
   hud.update(player.physics, dt);
   itemHud.update(player, dt);
