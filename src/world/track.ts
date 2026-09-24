@@ -66,11 +66,13 @@ export class Track implements KartWorld {
         [110, 0],
         [60, 20],
         [40, 70],
-        [80, 115],
-        [20, 135],
+        [72, 98],
+        [68, 132],
+        [20, 142],
         [-50, 120],
         [-80, 70],
-        [-40, 30],
+        [-52, 40],
+        [-62, 8],
         [-100, 0],
         [-120, -60],
         [-70, -100],
@@ -84,9 +86,10 @@ export class Track implements KartWorld {
     this.buildGround();
     this.buildRoad();
     this.buildStartLine();
-    for (const t of [0.12, 0.38, 0.62, 0.86]) this.addBoostPad(t);
-    this.addRamp(0.25, 1.8);
-    this.addRamp(0.73, 1.4);
+    // Boost pads and ramps sit on straights so the boost never shoots you into a hairpin.
+    for (const t of [0.02, 0.18, 0.48, 0.88]) this.addBoostPad(t);
+    this.addRamp(0.1, 1.4);
+    this.addRamp(0.53, 1.8);
     this.buildScenery();
     this.buildFence();
   }

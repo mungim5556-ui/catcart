@@ -34,7 +34,7 @@ export const KART = {
   /** Drift turn rate (rad/s) when steering out of / neutral / into the drift. */
   driftTurnMin: 0.05,
   driftTurnBase: 0.38,
-  driftTurnMax: 0.95,
+  driftTurnMax: 1.5,
   driftLevels: [0.8, 1.7, 2.7],
   /** Boost duration awarded for each mini-turbo level. */
   driftBoost: [0, 0.6, 1.1, 1.7],
