@@ -13,7 +13,15 @@ export type PropKind =
   | 'snowman'
   | 'present';
 
+/** What you drive on when you leave the road. */
+export interface Offroad {
+  label: string; // HUD warning, e.g. '🌱 잔디 — 감속!'
+  badge: string; // warning background (CSS colour)
+  dust: number; // particles kicked up by the wheels
+}
+
 export interface Theme {
+  offroad: Offroad;
   sky: number;
   fog: [near: number, far: number];
   hemi: [sky: number, ground: number, intensity: number];
@@ -63,6 +71,7 @@ export const TRACKS: TrackDef[] = [
     boxRows: [0.06, 0.31, 0.58, 0.8],
     seed: 42,
     theme: {
+      offroad: { label: '🌱 잔디 — 감속!', badge: 'rgba(60,120,40,.8)', dust: 0x8a9a52 },
       sky: 0xbfe6ff,
       fog: [90, 320],
       hemi: [0xeaf6ff, 0x7cc25c, 1.6],
@@ -91,6 +100,7 @@ export const TRACKS: TrackDef[] = [
     boxRows: [0.05, 0.3, 0.6, 0.83],
     seed: 7,
     theme: {
+      offroad: { label: '🏖️ 모래밭 — 감속!', badge: 'rgba(176,130,60,.85)', dust: 0xe8cf8a },
       sky: 0x9fdcff,
       fog: [110, 360],
       hemi: [0xfff8e8, 0xe8cf8f, 1.7],
@@ -120,6 +130,7 @@ export const TRACKS: TrackDef[] = [
     boxRows: [0.1, 0.4, 0.62, 0.84],
     seed: 99,
     theme: {
+      offroad: { label: '❄️ 눈밭 — 감속!', badge: 'rgba(70,110,160,.8)', dust: 0xffffff },
       sky: 0xd8e8f5,
       fog: [60, 260],
       hemi: [0xf4f8ff, 0xb9c9dd, 1.7],

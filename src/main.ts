@@ -226,6 +226,7 @@ function applyTheme(): void {
   sun.color.setHex(t.sun[0]);
   sun.intensity = t.sun[1];
   snowfall.points.visible = !!t.snow;
+  hud.setSurface(t.offroad.label, t.offroad.badge);
 }
 
 // --- Cup mode: three tracks in a row, points by finishing position ---
@@ -325,7 +326,7 @@ function frameEffects(r: Racer): void {
     const size = kart.driftLevel ? 1.3 : 1.8;
     for (const p of rear) sparks.emit(p, color, 3, kart.driftLevel ? 4 : 1.5, 0.35, size);
   } else if (kart.offroad && kart.grounded && Math.abs(kart.forwardSpeed) > 5) {
-    if (Math.random() < 0.5) sparks.emit(rear[Math.floor(Math.random() * 2)], 0xc9a27a, 2, 2, 0.4, 1.8);
+    if (Math.random() < 0.5) sparks.emit(rear[Math.floor(Math.random() * 2)], track.theme.offroad.dust, 2, 2, 0.4, 1.8);
   }
 }
 

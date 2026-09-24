@@ -16,6 +16,12 @@ export class Hud {
   private surface = document.getElementById('surface')!;
   private bannerTimer = 0;
 
+  /** Off-road warning for the current track's terrain. */
+  setSurface(label: string, background: string): void {
+    this.surface.textContent = label;
+    this.surface.style.background = background;
+  }
+
   toggleHelp(): void {
     this.help.classList.toggle('hidden');
   }
