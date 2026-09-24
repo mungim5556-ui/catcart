@@ -11,7 +11,44 @@ export type PropKind =
   | 'beachBall'
   | 'sandcastle'
   | 'snowman'
-  | 'present';
+  | 'present'
+  // city
+  | 'building'
+  | 'lamp'
+  | 'neon'
+  | 'trashcan'
+  | 'crate'
+  // forest
+  | 'broadleaf'
+  | 'mushroom'
+  | 'stump'
+  | 'bush'
+  // desert
+  | 'cactus'
+  | 'sandRock'
+  | 'tumbleweed'
+  | 'obelisk'
+  | 'urn';
+
+/** Big one-off set pieces placed at fixed spots. */
+export interface Landmark {
+  kind: 'pyramid' | 'sphinx';
+  x: number;
+  z: number;
+  size: number;
+  /** Facing (radians around Y). */
+  rot?: number;
+}
+
+/** Props lined up along both sides of the road (city blocks, forest walls). */
+export interface Lining {
+  props: [PropKind, number][];
+  /** Metres between props along the road. */
+  spacing: number;
+  /** Distance from the centre line (plus up to `jitter`). */
+  offset: number;
+  jitter: number;
+}
 
 /** What you drive on when you leave the road. */
 export interface Offroad {
@@ -37,6 +74,11 @@ export interface Theme {
   water?: number;
   /** Falling snow particles. */
   snow?: boolean;
+  /** Night: a light follows the player's kart. */
+  night?: boolean;
+  /** Scenery on the horizon, beyond the fence. */
+  backdrop?: 'mountains' | 'dunes' | 'skyline';
+  lining?: Lining;
   /** Scenery mix: kind and relative weight. */
   props: [PropKind, number][];
 }
@@ -52,6 +94,9 @@ export interface TrackDef {
   pads: number[];
   ramps: [t: number, height: number][];
   boxRows: number[];
+  /** Hollow fallen-log tunnels the road runs through (centre t, half length in m). Straights only. */
+  tunnels?: [t: number, halfLength: number][];
+  landmarks?: Landmark[];
   seed: number;
   theme: Theme;
 }
@@ -146,4 +191,113 @@ export const TRACKS: TrackDef[] = [
       props: [['snowPine', 55], ['snowman', 14], ['iceRock', 14], ['present', 9], ['yarn', 8]],
     },
   },
+  {
+    id: 'alley',
+    name: '달빛 골목',
+    emoji: '🌃',
+    desc: '네온사인 반짝이는 밤의 뒷골목',
+    points: [
+      [0, -110], [70, -110], [105, -95], [115, -60], [112, -15], [80, 0], [45, 5], [35, 35], [45, 70], [80, 80],
+      [110, 95], [115, 125], [80, 140], [20, 138], [-30, 135], [-70, 125], [-90, 95], [-95, 50], [-110, 20],
+      [-125, -20], [-120, -70], [-95, -100], [-50, -110],
+    ],
+    pads: [0.03, 0.15, 0.5, 0.75],
+    ramps: [[0.56, 1.6], [0.95, 1.4]],
+    boxRows: [0.1, 0.38, 0.66, 0.84],
+    seed: 21,
+    theme: {
+      offroad: { label: '🚧 인도 — 감속!', badge: 'rgba(60,50,90,.85)', dust: 0x8a8698 },
+      sky: 0x1b1838,
+      fog: [70, 300],
+      hemi: [0x7a76c0, 0x2a2438, 1.25],
+      sun: [0xaab8ff, 1.1],
+      ground: [0x3a3846, 0x34323f],
+      road: 0x4a4a5c,
+      curb: [0xffcc33, 0x3a3846],
+      line: 0xffd84d,
+      fence: 0x4a4458,
+      arch: 0xff4fa3,
+      ramp: 0xff4fa3,
+      night: true,
+      backdrop: 'skyline',
+      lining: { props: [['building', 70], ['lamp', 12], ['neon', 10], ['trashcan', 8]], spacing: 13, offset: 19, jitter: 3 },
+      props: [['building', 40], ['crate', 20], ['trashcan', 15], ['lamp', 15], ['neon', 10]],
+    },
+  },
+  {
+    id: 'forest',
+    name: '도토리 숲길',
+    emoji: '🌲',
+    desc: '쓰러진 거목 속을 달리는 숲속 산길',
+    points: [
+      [0, -110], [60, -108], [100, -80], [95, -40], [62, -18], [58, 22], [92, 42], [122, 78], [100, 118],
+      [50, 126], [15, 110], [-22, 124], [-68, 128], [-108, 105], [-112, 55], [-112, 15], [-88, -15],
+      [-88, -50], [-115, -78], [-100, -108], [-50, -114],
+    ],
+    pads: [0.02, 0.545, 0.652, 0.915],
+    ramps: [[0.945, 1.4]],
+    boxRows: [0.12, 0.35, 0.6, 0.8],
+    tunnels: [[0.69, 13]],
+    seed: 5,
+    theme: {
+      offroad: { label: '🌿 수풀 — 감속!', badge: 'rgba(50,90,40,.85)', dust: 0x6b5a3a },
+      sky: 0xa9d6c9,
+      fog: [80, 420],
+      hemi: [0xe8f5e0, 0x4f7a3a, 1.5],
+      sun: [0xfff0c8, 2.0],
+      ground: [0x5f8f3e, 0x557f36],
+      road: 0x9a7a58,
+      curb: [0x6b4f3a, 0xa8865f],
+      line: 0x9a7a58,
+      fence: 0x6b4f3a,
+      arch: 0x8b5a2b,
+      ramp: 0xa0703f,
+      backdrop: 'mountains',
+      lining: { props: [['pine', 45], ['broadleaf', 35], ['bush', 20]], spacing: 9, offset: 15, jitter: 6 },
+      props: [['pine', 28], ['broadleaf', 24], ['mushroom', 12], ['stump', 10], ['rock', 10], ['bush', 16]],
+    },
+  },
+  {
+    id: 'desert',
+    name: '모래바람 사막',
+    emoji: '🏜️',
+    desc: '고양이 스핑크스와 피라미드의 사막',
+    points: [
+      [0, -120], [80, -120], [130, -90], [135, -30], [110, 20], [125, 70], [100, 120], [40, 130],
+      [-10, 105], [-60, 125], [-110, 110], [-130, 60], [-105, 10], [-130, -40], [-115, -95], [-60, -122],
+    ],
+    pads: [0.03, 0.17, 0.41, 0.89],
+    ramps: [[0.1, 1.8], [0.44, 1.6]],
+    boxRows: [0.07, 0.3, 0.6, 0.8],
+    landmarks: [
+      { kind: 'pyramid', x: 15, z: -5, size: 56 },
+      { kind: 'pyramid', x: -50, z: 45, size: 36 },
+      { kind: 'pyramid', x: 50, z: 50, size: 24 },
+      // Faces the start/finish straight so you see its face every lap.
+      { kind: 'sphinx', x: -40, z: -55, size: 1, rot: 2.84 },
+    ],
+    seed: 13,
+    theme: {
+      offroad: { label: '🏜️ 모래언덕 — 감속!', badge: 'rgba(190,140,60,.85)', dust: 0xe9c27a },
+      sky: 0xf6d7a4,
+      fog: [130, 420],
+      hemi: [0xfff1d6, 0xd9a860, 1.7],
+      sun: [0xffe0b0, 2.6],
+      ground: [0xe9c27a, 0xdcb068],
+      road: 0x9a8570,
+      curb: [0xd9534f, 0xf5e6c8],
+      line: 0xfff3d0,
+      fence: 0xc9955a,
+      arch: 0xd9a441,
+      ramp: 0xd9534f,
+      backdrop: 'dunes',
+      props: [['cactus', 35], ['sandRock', 22], ['tumbleweed', 15], ['urn', 12], ['obelisk', 6], ['palm', 10]],
+    },
+  },
+];
+
+/** Cups: three tracks each, raced in order. */
+export const CUPS = [
+  { id: 'nyang', name: '냥냥컵', emoji: '🏆', tracks: ['meadow', 'beach', 'snow'] },
+  { id: 'yaong', name: '야옹컵', emoji: '🌙', tracks: ['alley', 'forest', 'desert'] },
 ];

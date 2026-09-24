@@ -8,6 +8,7 @@ export type ResultAction = 'again' | 'menu' | 'next';
 
 /** Cup standings shown on the results card. */
 export interface CupView {
+  name: string;
   race: number; // 1-based
   total: number;
   final: boolean;
@@ -211,8 +212,8 @@ export class RaceHud {
       )
       .join('');
     const title = cup.final
-      ? `${cup.table[0].racer === player ? '🏆 냥냥컵 우승!' : `🏅 냥냥컵 최종 ${cup.table.findIndex((r) => r.racer === player) + 1}위`}`
-      : `냥냥컵 ${cup.race} / ${cup.total} — 종합 순위`;
+      ? `${cup.table[0].racer === player ? `🏆 ${cup.name} 우승!` : `🏅 ${cup.name} 최종 ${cup.table.findIndex((r) => r.racer === player) + 1}위`}`
+      : `${cup.name} ${cup.race} / ${cup.total} — 종합 순위`;
     return `<h3 class="cup-title">${title}</h3><table class="board cup">${rows}</table>`;
   }
 

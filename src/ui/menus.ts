@@ -1,5 +1,5 @@
 import type { CatCharacter } from '../kart/catKart';
-import { TRACKS } from '../world/trackDefs';
+import { CUPS, TRACKS } from '../world/trackDefs';
 import { loadRecords, formatTime } from '../race/raceSession';
 import { trackPreview } from './trackPreview';
 
@@ -27,7 +27,7 @@ export interface MenuHandlers {
   /** Track highlighted on the track screen changed (backdrop preview). */
   onPreviewTrack(trackIndex: number): void;
   /** Single race on `trackIndex`, or a cup (which starts on track 0). */
-  onStart(catIndex: number, difficulty: Difficulty, mode: RaceMode, trackIndex: number): void;
+  onStart(catIndex: number, difficulty: Difficulty, mode: RaceMode, trackIndex: number, cupIndex: number): void;
   onResume(): void;
   onRestart(): void;
   onQuit(): void;
@@ -39,7 +39,6 @@ export interface MenuHandlers {
 }
 
 const PREFS_KEY = 'catcart.prefs.v1';
-export const CUP_NAME = '냥냥컵';
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
 function loadPrefs(): { cat: number; diff: number; track: number } {
@@ -58,6 +57,7 @@ export class Menus {
   diff: number;
   track: number;
   mode: RaceMode = 'single';
+  cupIndex = 0;
   private root = document.getElementById('menus')!;
   private focus = 0;
 
@@ -134,7 +134,10 @@ export class Menus {
       case 'title':
         return [
           { label: '🏁 레이스', action: 'single' },
-          { label: `🏆 ${CUP_NAME} (트랙 3개)`, action: 'cup' },
+          ...CUPS.map((c, i) => ({
+            label: `${c.emoji} ${c.name} <small>${c.tracks.map((id) => TRACKS.find((t) => t.id === id)?.emoji).join('')}</small>`,
+            action: `cup:${i}`,
+          })),
           { label: '🎮 조작법', action: 'controls' },
           this.soundButton(),
         ];
@@ -157,13 +160,17 @@ export class Menus {
     if (action.startsWith('cat:')) return this.setCat(+action.slice(4));
     if (action.startsWith('diff:')) return this.setDiff(+action.slice(5));
     if (action.startsWith('track:')) return this.setTrack(+action.slice(6));
+    if (action.startsWith('cup:')) {
+      this.mode = 'cup';
+      this.cupIndex = +action.slice(4);
+      return this.act('select');
+    }
     switch (action) {
       case 'title':
       case 'controls':
         return this.show(action);
       case 'single':
-      case 'cup':
-        this.mode = action;
+        this.mode = 'single';
         return this.act('select');
       case 'select':
         this.show('select');
@@ -182,7 +189,7 @@ export class Menus {
       case 'start':
         this.savePrefs();
         this.show('none');
-        return this.h.onStart(this.cat, DIFFICULTIES[this.diff], this.mode, this.mode === 'cup' ? 0 : this.track);
+        return this.h.onStart(this.cat, DIFFICULTIES[this.diff], this.mode, this.track, this.cupIndex);
       case 'resume':
         this.show('none');
         return this.h.onResume();
@@ -292,25 +299,24 @@ export class Menus {
               <button data-action="nextCat" class="arrow" aria-label="다음">▶</button>
             </div>
             <div class="diff">${diffs}</div>
-            <button data-action="next" class="go">${this.mode === 'cup' ? `${CUP_NAME} 출발! 🏆` : '트랙 고르기 ▶'}</button>
+            <button data-action="next" class="go">${this.mode === 'cup' ? `${CUPS[this.cupIndex].name} 출발! ${CUPS[this.cupIndex].emoji}` : '트랙 고르기 ▶'}</button>
             <p class="hint"><kbd>←</kbd><kbd>→</kbd> 고양이 · <kbd>↑</kbd><kbd>↓</kbd> 난이도 · <kbd>Enter</kbd> 다음 · <kbd>Esc</kbd> 뒤로</p>
           </div>`;
         return;
       }
       case 'track': {
-        const cards = TRACKS.map((t, i) => {
-          const best = loadRecords(t.id).bestTotal;
-          return `<button data-action="track:${i}" class="track-card ${i === this.track ? 'on' : ''}">
+        const cards = TRACKS.map(
+          (t, i) => `<button data-action="track:${i}" class="track-card ${i === this.track ? 'on' : ''}">
               <img src="${trackPreview(t)}" alt="" style="background:#${t.theme.ground[0].toString(16).padStart(6, '0')}" />
               <div class="tname">${t.emoji} ${t.name}</div>
-              <div class="tdesc">${t.desc}</div>
-              <div class="tbest">최고 기록 ${formatTime(best)}</div>
-            </button>`;
-        }).join('');
+            </button>`,
+        ).join('');
+        const sel = TRACKS[this.track];
         this.root.innerHTML = `
           <h2 class="select-title">트랙 선택</h2>
           <div class="track-bar">
             <div class="track-cards">${cards}</div>
+            <p class="track-info"><b>${sel.emoji} ${sel.name}</b> — ${sel.desc} · <span>최고 기록 ${formatTime(loadRecords(sel.id).bestTotal)}</span></p>
             <button data-action="start" class="go">출발! 🏁</button>
             <p class="hint"><kbd>←</kbd><kbd>→</kbd> 트랙 · <kbd>Enter</kbd> 출발 · <kbd>Esc</kbd> 뒤로</p>
           </div>`;

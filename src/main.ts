@@ -5,7 +5,7 @@ import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
 import { ROSTER } from './kart/catKart';
 import { SAMPLES, Track } from './world/track';
-import { TRACKS } from './world/trackDefs';
+import { CUPS, TRACKS } from './world/trackDefs';
 import { Snowfall } from './fx/snowfall';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
 import { Hud } from './ui/hud';
@@ -17,7 +17,7 @@ import { ItemSystem, type ItemEvent } from './items/items';
 import { ItemHud } from './ui/itemHud';
 import { GameAudio } from './audio/audio';
 import { SkidMarks } from './fx/skidMarks';
-import { CUP_NAME, DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
+import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
 import type { CupView } from './ui/raceHud';
 
 const STEP = 1 / 60;
@@ -48,6 +48,9 @@ sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 150 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
+// Night tracks: a warm light rides along with the player's kart.
+const kartLight = new THREE.PointLight(0xffe2b8, 0, 45, 1.3);
+scene.add(kartLight);
 
 // --- World & racers ---
 let trackIndex = 0;
@@ -63,7 +66,12 @@ for (const r of racers) scene.add(r.root);
 let difficulty: Difficulty = DIFFICULTIES[1];
 /** Points per finishing place in the cup, and the cup in progress (null = single race). */
 const CUP_POINTS = [10, 7, 5, 3, 2, 1];
-let cup: { race: number; points: Map<Racer, number> } | null = null;
+let cup: { cup: number; race: number; points: Map<Racer, number> } | null = null;
+
+/** Track indices of the cup in progress. */
+function cupTracks(): number[] {
+  return cup ? CUPS[cup.cup].tracks.map((id) => TRACKS.findIndex((t) => t.id === id)) : [];
+}
 
 /** Player becomes `catIndex`; everyone else in the roster races as AI. */
 function assignCats(catIndex: number): void {
@@ -131,7 +139,7 @@ function restartRace(): void {
   audio.setTempo(1);
   audio.setSong('race');
   const name = `${track.def.emoji} ${track.def.name}`;
-  hud.flash(cup ? `${CUP_NAME} ${cup.race + 1}/${TRACKS.length} · ${name}` : name, '#ffffff');
+  hud.flash(cup ? `${CUPS[cup.cup].name} ${cup.race + 1}/${cupTracks().length} · ${name}` : name, '#ffffff');
 }
 
 // --- Game flow: title → cat select → race ⇄ pause ---
@@ -145,10 +153,10 @@ const menus = new Menus(ROSTER, {
     loadTrack(i);
     placeOnGrid();
   },
-  onStart: (i, d, mode, t) => {
+  onStart: (i, d, mode, t, c) => {
     assignCats(i);
     difficulty = d;
-    if (mode === 'cup') startCup();
+    if (mode === 'cup') startCup(c);
     else {
       cup = null;
       loadTrack(t);
@@ -227,6 +235,7 @@ function applyTheme(): void {
   sun.intensity = t.sun[1];
   snowfall.points.visible = !!t.snow;
   hud.setSurface(t.offroad.label, t.offroad.badge);
+  kartLight.intensity = t.night ? 120 : 0;
 }
 
 // --- Cup mode: three tracks in a row, points by finishing position ---
@@ -240,12 +249,13 @@ function cupView(): CupView | undefined {
   });
   // Ties go to whoever placed better in this race.
   table.sort((a, b) => b.points - a.points || order.indexOf(a.racer) - order.indexOf(b.racer));
-  return { race: cup.race + 1, total: TRACKS.length, final: cup.race === TRACKS.length - 1, table };
+  const n = cupTracks().length;
+  return { name: CUPS[cup.cup].name, race: cup.race + 1, total: n, final: cup.race === n - 1, table };
 }
 
-function startCup(): void {
-  cup = { race: 0, points: new Map() };
-  loadTrack(0);
+function startCup(which = cup?.cup ?? 0): void {
+  cup = { cup: which, race: 0, points: new Map() };
+  loadTrack(cupTracks()[0]);
   restartRace();
 }
 
@@ -253,7 +263,7 @@ function nextCupRace(): void {
   if (!cup) return;
   for (const row of cupView()!.table) cup.points.set(row.racer, row.points);
   cup.race++;
-  loadTrack(cup.race);
+  loadTrack(cupTracks()[cup.race]);
   restartRace();
 }
 
@@ -558,6 +568,10 @@ function frame(now: number): void {
   itemHud.update(player, dt);
   raceHud.update(race, player, standings());
 
+  if (kartLight.intensity > 0) {
+    const f = player.physics.forward;
+    kartLight.position.set(player.renderPos.x + f.x * 3, player.renderPos.y + 4, player.renderPos.z + f.z * 3);
+  }
   sun.position.set(player.renderPos.x + 30, 60, player.renderPos.z + 20);
   sun.target.position.copy(player.renderPos);
 

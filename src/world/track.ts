@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { KartWorld } from '../kart/kartPhysics';
 import type { Theme, TrackDef } from './trackDefs';
-import { buildProp } from './scenery';
+import { buildBackdrop, buildLandmark, buildLogTunnel, buildProp } from './scenery';
 
 export const ROAD_WIDTH = 16;
 export const SAMPLES = 400;
@@ -60,6 +60,7 @@ export class Track implements KartWorld {
   private pads: Rect[] = [];
   private ramps: Ramp[] = [];
   private obstacles: Circle[] = [];
+  private tunnels: Rect[] = [];
 
   constructor(readonly def: TrackDef) {
     this.theme = def.theme;
@@ -77,7 +78,11 @@ export class Track implements KartWorld {
     // Boost pads and ramps sit on straights so the boost never shoots you into a hairpin.
     for (const t of def.pads) this.addBoostPad(t);
     for (const [t, h] of def.ramps) this.addRamp(t, h);
+    for (const [t, half] of def.tunnels ?? []) this.addTunnel(t, half);
+    this.buildLandmarks();
+    this.buildLining();
     this.buildScenery();
+    if (this.theme.backdrop) this.group.add(buildBackdrop(this.theme.backdrop, rng(def.seed + 7)));
     this.buildFence();
   }
 
@@ -132,6 +137,25 @@ export class Track implements KartWorld {
         pos.z = o.z + nz * min;
         hit = this.bounce(vel, nx, nz) || hit;
       }
+    }
+    // Hollow-log tunnels: keep karts inside the tube (or outside it).
+    for (const tun of this.tunnels) {
+      const dx = pos.x - tun.cx;
+      const dz = pos.z - tun.cz;
+      const u = dx * tun.fx + dz * tun.fz;
+      const v = dx * tun.fz - dz * tun.fx;
+      const wall = tun.halfWidth; // inner floor half-width
+      if (Math.abs(u) > tun.halfLen || Math.abs(v) > wall + 2.5) continue;
+      const side = Math.sign(v) || 1;
+      let target: number | null = null;
+      if (Math.abs(v) > wall - radius && Math.abs(v) <= wall + 0.8) target = side * (wall - radius); // inside: push in
+      else if (Math.abs(v) > wall + 0.8 && Math.abs(v) < wall + 1.2 + radius) target = side * (wall + 1.2 + radius); // outside: push out
+      if (target === null) continue;
+      const shift = target - v;
+      pos.x += tun.fz * shift;
+      pos.z -= tun.fx * shift;
+      const n = Math.sign(shift);
+      hit = this.bounce(vel, tun.fz * n, -tun.fx * n) || hit;
     }
     const b = this.bounds - radius;
     if (pos.x > b) { pos.x = b; hit = this.bounce(vel, -1, 0) || hit; }
@@ -418,6 +442,72 @@ export class Track implements KartWorld {
     this.group.add(m);
   }
 
+  private addTunnel(t: number, halfLen: number): void {
+    const radius = 12;
+    const lift = radius * 0.55; // sink the tube so its floor chord matches the road
+    const inner = radius - 0.7;
+    const floorHalf = Math.sqrt(inner * inner - lift * lift);
+    const rect = this.rectAt(t, halfLen, floorHalf);
+    this.tunnels.push(rect);
+    const log = buildLogTunnel(radius, halfLen);
+    this.placeOnRect(log, rect, lift);
+    this.group.add(log);
+    // Keep scattered props from spawning inside the log.
+    this.reserved.push({ x: rect.cx, z: rect.cz, r: Math.max(radius, halfLen) + 4 });
+  }
+
+  /** Areas kept clear of random scenery (tunnels). */
+  private reserved: Circle[] = [];
+
+  private free(x: number, z: number, r: number): boolean {
+    return (
+      !this.obstacles.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + r + 1.5) ** 2) &&
+      !this.reserved.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < (o.r + r) ** 2)
+    );
+  }
+
+  private buildLandmarks(): void {
+    for (const lm of this.def.landmarks ?? []) {
+      const { obj, radius } = buildLandmark(lm.kind, lm.size);
+      obj.position.set(lm.x, 0, lm.z);
+      obj.rotation.y = lm.rot ?? 0;
+      this.group.add(obj);
+      this.obstacles.push({ x: lm.x, z: lm.z, r: radius });
+    }
+  }
+
+  /** Props lined up along both sides of the road: city blocks, walls of trees. */
+  private buildLining(): void {
+    const lining = this.theme.lining;
+    if (!lining) return;
+    const rand = rng(this.def.seed + 3);
+    const step = Math.max(1, Math.round(lining.spacing / (this.curve.getLength() / SAMPLES)));
+    const total = lining.props.reduce((a, [, w]) => a + w, 0);
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < SAMPLES; i += step) {
+        // Keep the start arch and grid area open.
+        if (i < 4 || i > SAMPLES - 16) continue;
+        let pickW = rand() * total;
+        let kind = lining.props[0][0];
+        for (const [k, w] of lining.props) if ((pickW -= w) <= 0) { kind = k; break; }
+        const p = this.points[i];
+        const t = this.tangents[i];
+        const off = lining.offset + rand() * lining.jitter;
+        const x = p.x + t.z * off * side;
+        const z = p.z - t.x * off * side;
+        const { obj, radius } = buildProp(kind, rand);
+        // Must not sit on (or overhang) another stretch of road.
+        if (this.nearest(x, z).dist < ROAD_WIDTH / 2 + 2 + radius) continue;
+        if (Math.abs(x) > this.bounds - 4 || Math.abs(z) > this.bounds - 4 || !this.free(x, z, radius)) continue;
+        obj.position.set(x, 0, z);
+        // Face the road (neon signs and lamps lean over it).
+        obj.rotation.y = Math.atan2(t.x, t.z) + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+        this.group.add(obj);
+        this.obstacles.push({ x, z, r: radius });
+      }
+    }
+  }
+
   private buildScenery(): void {
     const rand = rng(this.def.seed);
     const props = this.theme.props;
@@ -427,7 +517,7 @@ export class Track implements KartWorld {
       const x = (rand() * 2 - 1) * (this.bounds - 6);
       const z = (rand() * 2 - 1) * (this.bounds - 6);
       if (this.nearest(x, z).dist < ROAD_WIDTH / 2 + 7) continue;
-      if (this.obstacles.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < 36)) continue;
+      if (!this.free(x, z, 2)) continue;
       let pickW = rand() * total;
       let kind = props[0][0];
       for (const [k, w] of props) {
@@ -437,6 +527,8 @@ export class Track implements KartWorld {
         }
       }
       const { obj, radius } = buildProp(kind, rand);
+      // Big props (buildings) need more room than the quick check above allowed.
+      if (radius > 2.5 && (this.nearest(x, z).dist < ROAD_WIDTH / 2 + 3 + radius || !this.free(x, z, radius))) continue;
       obj.position.set(x, 0, z);
       this.group.add(obj);
       this.obstacles.push({ x, z, r: radius });
