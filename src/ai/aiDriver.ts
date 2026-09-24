@@ -30,7 +30,13 @@ export class AiDriver {
     private profile: AiProfile,
   ) {}
 
-  drive(k: KartPhysics, tracker: LapTracker, others: KartPhysics[], dt: number): KartInput {
+  drive(
+    k: KartPhysics,
+    tracker: LapTracker,
+    others: KartPhysics[],
+    dt: number,
+    hazards: { x: number; z: number }[] = [],
+  ): KartInput {
     const pts = this.track.points;
     const tans = this.track.tangents;
     const idx = tracker.index;
@@ -55,6 +61,18 @@ export class AiDriver {
         lane = oLat + (myLat >= oLat ? 3.6 : -3.6);
         break;
       }
+    }
+    // Steer around bananas on the road ahead.
+    for (const h of hazards) {
+      const dx = h.x - k.pos.x;
+      const dz = h.z - k.pos.z;
+      const ahead = dx * t0.x + dz * t0.z;
+      if (ahead <= 0 || ahead > 32) continue;
+      const hLat = lateral(h.x, h.z);
+      if (ahead < 14 && Math.abs(hLat - myLat) < 2.4) {
+        // Close and in our path: swerve hard to whichever side we're already on.
+        lane = hLat + (myLat >= hLat ? 4.5 : -4.5);
+      } else if (Math.abs(hLat - lane) < 3) lane = hLat + (lane >= hLat ? 3.4 : -3.4);
     }
     lane = Math.max(-MAX_LANE, Math.min(MAX_LANE, lane));
 
@@ -90,6 +108,6 @@ export class AiDriver {
     const reset = this.stuck > 1.6;
     if (reset) this.stuck = 0;
 
-    return { throttle, brake: 0, steer: this.steer, drift, driftPressed, reset };
+    return { throttle, brake: 0, steer: this.steer, drift, driftPressed, reset, useItem: false };
   }
 }

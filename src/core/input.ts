@@ -6,6 +6,7 @@ export interface KartInput {
   drift: boolean; // hop / drift button held
   driftPressed: boolean; // drift button went down this frame
   reset: boolean; // put kart back on the road
+  useItem: boolean; // item button went down this frame
 }
 
 const KEYS = {
@@ -15,6 +16,7 @@ const KEYS = {
   right: ['KeyD', 'ArrowRight'],
   drift: ['Space', 'ShiftLeft', 'ShiftRight'],
   reset: ['KeyR'],
+  item: ['KeyE', 'ControlLeft', 'ControlRight'],
 };
 
 /** Keyboard + gamepad input. Keyboard steering is smoothed so it feels less twitchy. */
@@ -22,6 +24,7 @@ export class Input {
   private down = new Set<string>();
   private smoothSteer = 0;
   private prevDrift = false;
+  private prevItem = false;
   private pressedOnce = new Set<string>();
 
   constructor() {
@@ -54,6 +57,9 @@ export class Input {
     let steer = this.smoothSteer;
     let drift = this.any(KEYS.drift);
     let reset = this.consumePress('KeyR');
+    // Taps can go down and up between two reads, so use the press latch, not the held state.
+    const itemTap = KEYS.item.map((k) => this.consumePress(k)).some(Boolean);
+    let item = false;
 
     // Standard-mapping gamepad: left stick steers, RT/A accelerate, LT/B brake, RB/LB drift.
     const pad = navigator.getGamepads?.().find((p) => p && p.connected);
@@ -64,10 +70,13 @@ export class Input {
       brake = Math.max(brake, pad.buttons[6]?.value ?? 0, pad.buttons[1]?.pressed ? 1 : 0);
       drift = drift || !!pad.buttons[5]?.pressed || !!pad.buttons[4]?.pressed;
       reset = reset || !!pad.buttons[3]?.pressed;
+      item = item || !!pad.buttons[2]?.pressed;
     }
 
     const driftPressed = drift && !this.prevDrift;
     this.prevDrift = drift;
-    return { throttle, brake, steer, drift, driftPressed, reset };
+    const useItem = itemTap || (item && !this.prevItem);
+    this.prevItem = item;
+    return { throttle, brake, steer, drift, driftPressed, reset, useItem };
   }
 }

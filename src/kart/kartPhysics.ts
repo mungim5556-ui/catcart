@@ -40,10 +40,14 @@ export const KART = {
   driftBoost: [0, 0.6, 1.1, 1.7],
   padBoost: 1.2,
   rocketBoost: 1.3,
+  fishBoost: 1.6,
+  /** Spin-out after being hit by an item. */
+  spinDuration: 1.1,
+  hitInvuln: 0.8,
 };
 
 /** Drift mini-turbo level (1-3), a boost pad, or a rocket start. */
-export type BoostSource = number | 'pad' | 'rocket';
+export type BoostSource = number | 'pad' | 'rocket' | 'fish';
 
 export interface StepEvents {
   landed: number; // impact speed when touching down this step
@@ -64,6 +68,10 @@ export class KartPhysics {
   driftCharge = 0;
   boostTime = 0;
   offroad = false;
+  /** Time left spinning out after an item hit (no control). */
+  spinTime = 0;
+  /** Time left immune to item hits. */
+  invulnTime = 0;
   /** Per-kart speed scale (AI skill, catch-up); 1 = normal. */
   speedMul = 1;
 
@@ -96,10 +104,40 @@ export class KartPhysics {
     this.grounded = true;
     this.drifting = false;
     this.boostTime = 0;
+    this.spinTime = 0;
+    this.invulnTime = 0;
+  }
+
+  /** Item hit: spin out and lose most speed. Returns false if immune. */
+  hit(): boolean {
+    if (this.invulnTime > 0) return false;
+    this.spinTime = KART.spinDuration;
+    this.invulnTime = KART.spinDuration + KART.hitInvuln;
+    this.vel.x *= 0.25;
+    this.vel.z *= 0.25;
+    this.drifting = false;
+    this.boostTime = 0;
+    return true;
+  }
+
+  fishBoost(): void {
+    this.addBoost(KART.fishBoost, 'fish');
+  }
+
+  /** 0..1 progress through the current spin-out (0 when not spinning). */
+  get spinProgress(): number {
+    return this.spinTime > 0 ? 1 - this.spinTime / KART.spinDuration : 0;
   }
 
   step(dt: number, input: KartInput, world: KartWorld): void {
     this.events = { landed: 0, hit: false, boost: null, hop: false };
+
+    this.invulnTime = Math.max(0, this.invulnTime - dt);
+    if (this.spinTime > 0) {
+      // Spinning out: no control until it ends.
+      this.spinTime = Math.max(0, this.spinTime - dt);
+      input = { ...input, throttle: 0, brake: 0.4, steer: 0, drift: false, driftPressed: false, reset: false };
+    }
 
     if (input.reset) {
       const r = world.respawnPoint(this.pos.x, this.pos.z);

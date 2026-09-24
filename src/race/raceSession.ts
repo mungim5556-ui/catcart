@@ -81,14 +81,14 @@ export class RaceSession {
         // Rocket start: press accelerate around when "1" appears — not earlier.
         this.rocketStart = this.throttleHeld > 0.1 && this.throttleHeld < 1.1;
       }
-      return { input: { ...input, throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, reset: false }, started };
+      return { input: { ...input, throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, reset: false, useItem: false }, started };
     }
     if (this.phase === 'racing') {
       this.time += dt;
       return { input, started };
     }
     // Finished: let the kart roll to a stop.
-    return { input: { ...input, throttle: 0, brake: 0.3, drift: false, driftPressed: false }, started };
+    return { input: { ...input, throttle: 0, brake: 0.3, drift: false, driftPressed: false, useItem: false }, started };
   }
 
   /** Call when the tracker reports a completed lap. Returns true if the race just ended. */

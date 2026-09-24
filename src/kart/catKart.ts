@@ -173,7 +173,12 @@ export class CatKart {
     const targetOffset = k.drifting ? -k.driftDir * 0.3 : 0;
     this.visualYawOffset += (targetOffset - this.visualYawOffset) * damp(8);
     this.root.position.copy(pos);
-    this.root.rotation.y = yaw + this.visualYawOffset;
+    // Item hit: one full spin, easing out.
+    const sp = k.spinProgress;
+    const spin = sp > 0 ? (1 - (1 - sp) ** 2) * Math.PI * 2 : 0;
+    this.root.rotation.y = yaw + this.visualYawOffset + spin;
+    // Blink while immune after a hit.
+    this.root.visible = !(k.invulnTime > 0 && k.spinTime <= 0 && Math.floor(this.time * 20) % 2 === 0);
 
     const targetRoll = THREE.MathUtils.clamp(k.yawRate * 0.08 * Math.sign(fs || 1), -0.2, 0.2);
     this.roll += (targetRoll - this.roll) * damp(6);

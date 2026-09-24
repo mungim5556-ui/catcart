@@ -11,6 +11,8 @@ import { RaceHud } from './ui/raceHud';
 import { LapTracker } from './race/lapTracker';
 import { RaceSession, TOTAL_LAPS } from './race/raceSession';
 import { IDLE_INPUT, Racer, collideKarts } from './race/racer';
+import { ItemSystem, type ItemEvent } from './items/items';
+import { ItemHud } from './ui/itemHud';
 
 const STEP = 1 / 60;
 const SKY = 0xbfe6ff;
@@ -60,6 +62,10 @@ rivals.forEach((r, i) => {
 const racers = [player, ...rivals];
 for (const r of racers) scene.add(r.model.root);
 
+const items = new ItemSystem(track);
+scene.add(items.group);
+const itemHud = new ItemHud();
+
 const sparks = new Sparks(320);
 scene.add(sparks.group);
 
@@ -90,6 +96,7 @@ function restartRace(): void {
   clock = 0;
   race.restart();
   raceHud.hideResults();
+  items.clear();
 }
 placeOnGrid();
 
@@ -117,6 +124,7 @@ function playerStepEffects(): void {
   if (e.boost !== null) {
     if (e.boost === 'pad') hud.flash('부스트!', '#ffb300');
     else if (e.boost === 'rocket') hud.flash('로켓 스타트!', '#ff6f91');
+    else if (e.boost === 'fish') hud.flash('생선 부스트!', '#4fc3ff');
     else hud.flash(['', '미니 터보!', '슈퍼 터보!', '울트라 터보!'][e.boost], '#' + DRIFT_COLORS[e.boost].toString(16));
     chase.bump(0.25);
   }
@@ -141,6 +149,21 @@ function frameEffects(r: Racer): void {
   }
 }
 
+function itemEffects(e: ItemEvent): void {
+  if (e.type !== 'hit') return;
+  const near = e.victim.physics.pos.distanceToSquared(player.physics.pos) < 60 * 60;
+  if (near) {
+    const at = e.victim.physics.pos.clone().setY(e.victim.physics.pos.y + 1.2);
+    for (let i = 0; i < 14; i++) sparks.emit(at, i % 2 ? 0xffe066 : 0xffffff, 7, 5, 0.6, 1.6);
+  }
+  if (e.victim === player) {
+    hud.flash(e.item === 'banana' ? '미끄덩!' : '냐앙!', '#ff5a6e');
+    chase.bump(0.7);
+  } else if (e.by === player) {
+    hud.flash(`${e.victim.name} 명중!`, '#ffb300');
+  }
+}
+
 // --- Simulation step ---
 function onFinish(): void {
   if (race.phase === 'finished') raceHud.showResults(race, standings(), player);
@@ -160,15 +183,20 @@ function step(): void {
   }
   const others = racers.map((r) => r.physics);
   const racing = race.phase !== 'countdown';
+  const order = standings();
+  const hazards = items.hazards;
+
+  if (race.phase === 'racing' && gated.input.useItem) items.use(player, order);
+  if (racing) for (const r of rivals) if (items.aiWantsToUse(r, order)) items.use(r, order);
 
   // After the finish line the player's kart drives itself.
   player.lastInput =
-    race.phase === 'finished' ? player.ai.drive(player.physics, player.tracker, others, STEP) : gated.input;
+    race.phase === 'finished' ? player.ai.drive(player.physics, player.tracker, others, STEP, hazards) : gated.input;
   player.physics.speedMul = race.phase === 'finished' ? 0.85 : 1;
 
   const playerDist = player.tracker.distance;
   for (const r of rivals) {
-    r.lastInput = racing ? r.ai.drive(r.physics, r.tracker, others, STEP) : IDLE_INPUT;
+    r.lastInput = racing ? r.ai.drive(r.physics, r.tracker, others, STEP, hazards) : IDLE_INPUT;
     // Catch-up: AI far ahead eases off, AI far behind pushes a little harder.
     const gap = r.tracker.distance - playerDist;
     const catchUp = race.phase === 'racing' ? Math.max(0.88, Math.min(1.1, 1 - gap * CATCH_UP)) : 1;
@@ -186,6 +214,7 @@ function step(): void {
     r.physics.events.hit = true;
     r.physics.drifting = false;
   }
+  if (racing) for (const e of items.update(STEP, racers, order)) itemEffects(e);
   playerStepEffects();
 
   for (const r of racers) {
@@ -234,6 +263,7 @@ function frame(now: number): void {
   sparks.update(dt);
   chase.update(player.physics, player.renderPos, dt);
   hud.update(player.physics, dt);
+  itemHud.update(player, dt);
   raceHud.update(race, player, standings());
 
   sun.position.set(player.renderPos.x + 30, 60, player.renderPos.z + 20);
@@ -247,7 +277,7 @@ requestAnimationFrame(frame);
 // Handy for tuning from the browser console: window.catcart.KART.maxSpeed = 30
 Object.assign(window, {
   catcart: {
-    player, rivals, racers, track, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
+    player, rivals, racers, track, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings, items,
     step, restartRace,
     setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
   },

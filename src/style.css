@@ -148,3 +148,18 @@ kbd { background: #fff; color: #333; border-radius: 4px; padding: 0 5px; font-si
   #place { bottom: 134px; }
   #position { font-size: 42px; }
 }
+
+#item {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  width: 84px; height: 84px; border-radius: 20px; background: rgba(40, 30, 60, .55);
+  border: 4px solid #fff; box-shadow: 0 4px 0 #ff6f91; text-align: center;
+}
+#item-icon { font-size: 52px; line-height: 76px; }
+#item-icon.spin { filter: blur(.5px); opacity: .85; }
+#item-icon.got { animation: bump .35s ease-out; }
+#item small { position: absolute; left: 50%; bottom: -24px; transform: translateX(-50%); opacity: 0; transition: opacity .2s; }
+#item.ready small { opacity: 1; }
+@media (max-width: 600px) {
+  #item { width: 60px; height: 60px; top: 60px; }
+  #item-icon { font-size: 36px; line-height: 52px; }
+}

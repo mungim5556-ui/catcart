@@ -5,11 +5,12 @@ import { KartPhysics } from '../kart/kartPhysics';
 import type { KartInput } from '../core/input';
 import type { Track } from '../world/track';
 import { LapTracker } from './lapTracker';
+import type { ItemHolder, ItemKind } from '../items/items';
 
-const IDLE: KartInput = { throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, reset: false };
+const IDLE: KartInput = { throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, reset: false, useItem: false };
 
 /** One kart in the race: physics, model, lap tracking and (for AI) a driver. */
-export class Racer {
+export class Racer implements ItemHolder {
   readonly physics = new KartPhysics();
   readonly model: CatKart;
   readonly tracker: LapTracker;
@@ -18,6 +19,9 @@ export class Racer {
   pace = 1;
   rocketChance = 0;
   finishTime: number | null = null;
+  item: ItemKind | null = null;
+  roulette = 0;
+  itemHold = 0;
   lastInput: KartInput = IDLE;
 
   readonly prevPos = new THREE.Vector3();
@@ -43,6 +47,9 @@ export class Racer {
     this.tracker.reset(this.physics.pos);
     this.finishTime = null;
     this.lastInput = IDLE;
+    this.item = null;
+    this.roulette = 0;
+    this.itemHold = 0;
     this.snapRender();
   }
 
