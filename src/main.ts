@@ -5,6 +5,8 @@ import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
 import { ROSTER } from './kart/catKart';
 import { SAMPLES, Track } from './world/track';
+import { TRACKS } from './world/trackDefs';
+import { Snowfall } from './fx/snowfall';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
 import { Hud } from './ui/hud';
 import { RaceHud } from './ui/raceHud';
@@ -15,7 +17,8 @@ import { ItemSystem, type ItemEvent } from './items/items';
 import { ItemHud } from './ui/itemHud';
 import { GameAudio } from './audio/audio';
 import { SkidMarks } from './fx/skidMarks';
-import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
+import { CUP_NAME, DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
+import type { CupView } from './ui/raceHud';
 
 const STEP = 1 / 60;
 const SKY = 0xbfe6ff;
@@ -37,7 +40,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
 scene.fog = new THREE.Fog(SKY, 90, 320);
 
-scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x7cc25c, 1.6));
+const hemi = new THREE.HemisphereLight(0xeaf6ff, 0x7cc25c, 1.6);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -46,14 +50,20 @@ sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
 // --- World & racers ---
-const track = new Track();
+let trackIndex = 0;
+let track = new Track(TRACKS[trackIndex]);
 scene.add(track.group);
+const snowfall = new Snowfall();
+scene.add(snowfall.points);
 
 const player = new Racer(ROSTER[0], true, track);
 const rivals = ROSTER.slice(1).map((c) => new Racer(c, false, track));
 const racers = [player, ...rivals];
 for (const r of racers) scene.add(r.root);
 let difficulty: Difficulty = DIFFICULTIES[1];
+/** Points per finishing place in the cup, and the cup in progress (null = single race). */
+const CUP_POINTS = [10, 7, 5, 3, 2, 1];
+let cup: { race: number; points: Map<Racer, number> } | null = null;
 
 /** Player becomes `catIndex`; everyone else in the roster races as AI. */
 function assignCats(catIndex: number): void {
@@ -61,7 +71,7 @@ function assignCats(catIndex: number): void {
   ROSTER.filter((_, i) => i !== catIndex).forEach((c, i) => rivals[i].setCharacter(c));
 }
 
-const items = new ItemSystem(track);
+let items = new ItemSystem(track);
 scene.add(items.group);
 const itemHud = new ItemHud();
 
@@ -114,11 +124,14 @@ function restartRace(): void {
   skidPrev.clear();
   confetti = 0;
   lastCount = null;
+  if (menus.screen !== 'none') menus.show('none');
   mode = 'race';
   input.clearPresses();
   audio.duck(false);
   audio.setTempo(1);
   audio.setSong('race');
+  const name = `${track.def.emoji} ${track.def.name}`;
+  hud.flash(cup ? `${CUP_NAME} ${cup.race + 1}/${TRACKS.length} · ${name}` : name, '#ffffff');
 }
 
 // --- Game flow: title → cat select → race ⇄ pause ---
@@ -128,10 +141,19 @@ let menuTime = 0;
 
 const menus = new Menus(ROSTER, {
   onPreview: (i) => assignCats(i),
-  onStart: (i, d) => {
+  onPreviewTrack: (i) => {
+    loadTrack(i);
+    placeOnGrid();
+  },
+  onStart: (i, d, mode, t) => {
     assignCats(i);
     difficulty = d;
-    restartRace();
+    if (mode === 'cup') startCup();
+    else {
+      cup = null;
+      loadTrack(t);
+      restartRace();
+    }
   },
   onResume: () => {
     mode = 'race';
@@ -147,6 +169,8 @@ const menus = new Menus(ROSTER, {
 
 function goToTitle(): void {
   mode = 'title';
+  cup = null;
+  loadTrack(menus.track);
   raceHud.hideResults();
   items.clear();
   assignCats(menus.cat);
@@ -170,8 +194,73 @@ function pause(): void {
 }
 document.addEventListener('visibilitychange', () => document.hidden && pause());
 window.addEventListener('blur', pause);
-raceHud.onAction((a) => (a === 'again' ? restartRace() : goToTitle()));
+raceHud.onAction(resultAction);
+applyTheme();
 goToTitle();
+
+/** Switches the whole world to another track (scene, items, minimap, records). */
+function loadTrack(i: number): void {
+  if (i === trackIndex) return;
+  trackIndex = i;
+  scene.remove(track.group, items.group);
+  track.dispose();
+  track = new Track(TRACKS[i]);
+  items = new ItemSystem(track);
+  scene.add(track.group, items.group);
+  for (const r of racers) r.setTrack(track);
+  raceHud.setTrack(track);
+  race.setTrack(track.def.id);
+  skids.clear();
+  skidPrev.clear();
+  applyTheme();
+}
+
+function applyTheme(): void {
+  const t = track.theme;
+  (scene.background as THREE.Color).setHex(t.sky);
+  scene.fog = new THREE.Fog(t.sky, t.fog[0], t.fog[1]);
+  document.body.style.background = '#' + t.sky.toString(16).padStart(6, '0');
+  hemi.color.setHex(t.hemi[0]);
+  hemi.groundColor.setHex(t.hemi[1]);
+  hemi.intensity = t.hemi[2];
+  sun.color.setHex(t.sun[0]);
+  sun.intensity = t.sun[1];
+  snowfall.points.visible = !!t.snow;
+}
+
+// --- Cup mode: three tracks in a row, points by finishing position ---
+
+function cupView(): CupView | undefined {
+  if (!cup) return undefined;
+  const order = standings();
+  const table = racers.map((r) => {
+    const gained = CUP_POINTS[order.indexOf(r)] ?? 0;
+    return { racer: r, gained, points: (cup!.points.get(r) ?? 0) + gained };
+  });
+  // Ties go to whoever placed better in this race.
+  table.sort((a, b) => b.points - a.points || order.indexOf(a.racer) - order.indexOf(b.racer));
+  return { race: cup.race + 1, total: TRACKS.length, final: cup.race === TRACKS.length - 1, table };
+}
+
+function startCup(): void {
+  cup = { race: 0, points: new Map() };
+  loadTrack(0);
+  restartRace();
+}
+
+function nextCupRace(): void {
+  if (!cup) return;
+  for (const row of cupView()!.table) cup.points.set(row.racer, row.points);
+  cup.race++;
+  loadTrack(cup.race);
+  restartRace();
+}
+
+function resultAction(a: 'again' | 'menu' | 'next'): void {
+  if (a === 'next') nextCupRace();
+  else if (a === 'again') (cup ? startCup() : restartRace());
+  else goToTitle();
+}
 
 /** Finished racers by finish time, then everyone else by distance covered. */
 function standings(): Racer[] {
@@ -264,7 +353,7 @@ function itemEffects(e: ItemEvent): void {
 
 // --- Simulation step ---
 function onFinish(): void {
-  if (race.phase === 'finished') raceHud.showResults(race, standings(), player);
+  if (race.phase === 'finished') raceHud.showResults(race, standings(), player, cupView());
 }
 
 function step(): void {
@@ -434,7 +523,7 @@ function frame(now: number): void {
     const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
     const esc = input.consumePress('Escape') || input.consumePress('KeyP');
     if (race.phase === 'finished') {
-      if (enter) restartRace();
+      if (enter) resultAction(cup && !cupView()!.final ? 'next' : 'again');
       else if (esc) goToTitle();
     } else if (esc) pause();
   } else {
@@ -454,7 +543,10 @@ function frame(now: number): void {
     r.model.update(r.physics, r.lastInput.steer, dt, r.renderPos, r.renderYaw);
     frameEffects(r);
   }
-  if (mode !== 'paused') sparks.update(dt);
+  if (mode !== 'paused') {
+    sparks.update(dt);
+    snowfall.update(dt, chase.camera.position);
+  }
   if (mode === 'race') {
     if (chase.camera.view?.enabled) chase.camera.clearViewOffset();
     chase.update(player.physics, player.renderPos, dt);
@@ -476,7 +568,17 @@ requestAnimationFrame(frame);
 // Handy for tuning from the browser console: window.catcart.KART.maxSpeed = 30
 Object.assign(window, {
   catcart: {
-    player, rivals, racers, track, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings, items,
+    player, rivals, racers, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
+    get track() {
+      return track;
+    },
+    get items() {
+      return items;
+    },
+    loadTrack, startCup, nextCupRace,
+    get cup() {
+      return cup;
+    },
     step, restartRace, menus, audio,
     setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
   },

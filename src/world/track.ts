@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { KartWorld } from '../kart/kartPhysics';
+import type { Theme, TrackDef } from './trackDefs';
+import { buildProp } from './scenery';
 
 export const ROAD_WIDTH = 16;
 export const SAMPLES = 400;
@@ -51,6 +53,7 @@ export class Track implements KartWorld {
   readonly group = new THREE.Group();
   readonly curve: THREE.CatmullRomCurve3;
   readonly bounds = 170;
+  readonly theme: Theme;
   /** Evenly spaced centre-line samples (index 0 = start/finish line). */
   readonly points: THREE.Vector3[];
   readonly tangents: THREE.Vector3[];
@@ -58,26 +61,10 @@ export class Track implements KartWorld {
   private ramps: Ramp[] = [];
   private obstacles: Circle[] = [];
 
-  constructor() {
+  constructor(readonly def: TrackDef) {
+    this.theme = def.theme;
     this.curve = new THREE.CatmullRomCurve3(
-      [
-        [0, -90],
-        [70, -100],
-        [120, -60],
-        [110, 0],
-        [60, 20],
-        [40, 70],
-        [72, 98],
-        [68, 132],
-        [20, 142],
-        [-50, 120],
-        [-80, 70],
-        [-52, 40],
-        [-62, 8],
-        [-100, 0],
-        [-120, -60],
-        [-70, -100],
-      ].map(([x, z]) => new THREE.Vector3(x, 0, z)),
+      def.points.map(([x, z]) => new THREE.Vector3(x, 0, z)),
       true,
       'centripetal',
     );
@@ -88,11 +75,27 @@ export class Track implements KartWorld {
     this.buildRoad();
     this.buildStartLine();
     // Boost pads and ramps sit on straights so the boost never shoots you into a hairpin.
-    for (const t of [0.02, 0.18, 0.48, 0.88]) this.addBoostPad(t);
-    this.addRamp(0.1, 1.4);
-    this.addRamp(0.53, 1.8);
+    for (const t of def.pads) this.addBoostPad(t);
+    for (const [t, h] of def.ramps) this.addRamp(t, h);
     this.buildScenery();
     this.buildFence();
+  }
+
+  /** Frees GPU memory when switching tracks. */
+  dispose(): void {
+    const seen = new Set<unknown>();
+    this.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      if (!seen.has(o.geometry)) o.geometry.dispose();
+      seen.add(o.geometry);
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const mt of mats) {
+        if (seen.has(mt)) continue;
+        seen.add(mt);
+        (mt as THREE.MeshStandardMaterial).map?.dispose();
+        mt.dispose();
+      }
+    });
   }
 
   // ---------- KartWorld ----------
@@ -234,8 +237,8 @@ export class Track implements KartWorld {
     // Gentle color variation so the grass does not look flat.
     const colors: number[] = [];
     const rand = rng(7);
-    const a = new THREE.Color(0x8fd16a);
-    const b = new THREE.Color(0x7cc25c);
+    const a = new THREE.Color(this.theme.ground[0]);
+    const b = new THREE.Color(this.theme.ground[1]);
     for (let i = 0; i < geo.attributes.position.count; i++) {
       const c = a.clone().lerp(b, rand());
       colors.push(c.r, c.g, c.b);
@@ -247,6 +250,17 @@ export class Track implements KartWorld {
     );
     ground.receiveShadow = true;
     this.group.add(ground);
+
+    if (this.theme.water !== undefined) {
+      // Beach: the fenced area is sand; beyond it, the sea.
+      geo.scale(0.44, 1, 0.44);
+      const sea = new THREE.Mesh(
+        new THREE.PlaneGeometry(1400, 1400).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: this.theme.water, roughness: 0.3, metalness: 0.1 }),
+      );
+      sea.position.y = -0.4;
+      this.group.add(sea);
+    }
   }
 
   private ribbon(offsetA: number, offsetB: number, y: number, colorFn: (i: number) => THREE.Color): THREE.Mesh {
@@ -278,15 +292,15 @@ export class Track implements KartWorld {
 
   private buildRoad(): void {
     const w = ROAD_WIDTH / 2;
-    const asphalt = new THREE.Color(0x6b6f80);
+    const asphalt = new THREE.Color(this.theme.road);
     this.group.add(this.ribbon(-w, w, 0.02, () => asphalt));
-    const red = new THREE.Color(0xff5a6e);
-    const white = new THREE.Color(0xffffff);
+    const red = new THREE.Color(this.theme.curb[0]);
+    const white = new THREE.Color(this.theme.curb[1]);
     const curb = (i: number) => (Math.floor(i / 3) % 2 ? red : white);
     this.group.add(this.ribbon(w, w + 1.2, 0.04, curb));
     this.group.add(this.ribbon(-w - 1.2, -w, 0.04, curb));
     // dashed centre line
-    const line = new THREE.Color(0xfff3b0);
+    const line = new THREE.Color(this.theme.line);
     const dashes = this.ribbon(-0.2, 0.2, 0.03, (i) => (Math.floor(i / 4) % 2 ? line : asphalt));
     this.group.add(dashes);
   }
@@ -310,7 +324,7 @@ export class Track implements KartWorld {
     this.group.add(line);
 
     // Arch over the start line with a paw sign
-    const archMat = mat(0xff6f91);
+    const archMat = mat(this.theme.arch);
     for (const side of [-1, 1]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 8, 6), archMat);
       const pr = this.rectAt(0, 1, 1, side * (ROAD_WIDTH / 2 + 2));
@@ -328,7 +342,7 @@ export class Track implements KartWorld {
     const sg = sign.getContext('2d')!;
     sg.fillStyle = '#fff';
     sg.fillRect(0, 0, 512, 64);
-    sg.fillStyle = '#ff6f91';
+    sg.fillStyle = '#' + this.theme.arch.toString(16).padStart(6, '0');
     sg.font = 'bold 44px sans-serif';
     sg.textAlign = 'center';
     sg.fillText('🐾 CATCART 🐾', 256, 48);
@@ -397,7 +411,7 @@ export class Track implements KartWorld {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x57c7ff, flatShading: true, side: THREE.DoubleSide }));
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: this.theme.ramp, flatShading: true, side: THREE.DoubleSide }));
     m.castShadow = true;
     m.receiveShadow = true;
     this.placeOnRect(m, ramp, 0);
@@ -405,67 +419,33 @@ export class Track implements KartWorld {
   }
 
   private buildScenery(): void {
-    const rand = rng(42);
-    const trunkMat = mat(0x9b6b43);
-    const leafMats = [mat(0x4fae5a), mat(0x69c16b), mat(0x3f9a55)];
-    const rockMat = mat(0xb8b3c7);
-    const yarnMats = [mat(0xff8fab), mat(0x9ad0ff), mat(0xc9a4ff), mat(0xffd36e)];
-
+    const rand = rng(this.def.seed);
+    const props = this.theme.props;
+    const total = props.reduce((a, [, w]) => a + w, 0);
     let placed = 0;
     for (let attempt = 0; attempt < 900 && placed < 170; attempt++) {
       const x = (rand() * 2 - 1) * (this.bounds - 6);
       const z = (rand() * 2 - 1) * (this.bounds - 6);
       if (this.nearest(x, z).dist < ROAD_WIDTH / 2 + 7) continue;
       if (this.obstacles.some((o) => (o.x - x) ** 2 + (o.z - z) ** 2 < 36)) continue;
-      const kind = rand();
-      if (kind < 0.62) {
-        const s = 0.8 + rand() * 0.8;
-        const tree = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * s, 0.45 * s, 2 * s, 5), trunkMat);
-        trunk.position.y = s;
-        const leafMat = leafMats[Math.floor(rand() * leafMats.length)];
-        for (let k = 0; k < 2; k++) {
-          const cone = new THREE.Mesh(new THREE.ConeGeometry((2.2 - k * 0.6) * s, 2.6 * s, 6), leafMat);
-          cone.position.y = (2.6 + k * 1.4) * s;
-          cone.castShadow = true;
-          tree.add(cone);
+      let pickW = rand() * total;
+      let kind = props[0][0];
+      for (const [k, w] of props) {
+        if ((pickW -= w) <= 0) {
+          kind = k;
+          break;
         }
-        trunk.castShadow = true;
-        tree.add(trunk);
-        tree.position.set(x, 0, z);
-        tree.rotation.y = rand() * Math.PI;
-        this.group.add(tree);
-        this.obstacles.push({ x, z, r: 0.6 * s });
-      } else if (kind < 0.82) {
-        const s = 0.8 + rand() * 1.4;
-        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
-        rock.position.set(x, s * 0.5, z);
-        rock.rotation.set(rand(), rand(), rand());
-        rock.castShadow = true;
-        this.group.add(rock);
-        this.obstacles.push({ x, z, r: s * 0.9 });
-      } else {
-        // Giant yarn ball: sphere wrapped with a few rings
-        const s = 1.2 + rand() * 0.8;
-        const m = yarnMats[Math.floor(rand() * yarnMats.length)];
-        const ball = new THREE.Group();
-        ball.add(new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), m));
-        for (let k = 0; k < 3; k++) {
-          const ring = new THREE.Mesh(new THREE.TorusGeometry(s * 1.0, 0.08 * s, 4, 12), m);
-          ring.rotation.set(rand() * Math.PI, rand() * Math.PI, 0);
-          ball.add(ring);
-        }
-        ball.children.forEach((c) => (c.castShadow = true));
-        ball.position.set(x, s, z);
-        this.group.add(ball);
-        this.obstacles.push({ x, z, r: s });
       }
+      const { obj, radius } = buildProp(kind, rand);
+      obj.position.set(x, 0, z);
+      this.group.add(obj);
+      this.obstacles.push({ x, z, r: radius });
       placed++;
     }
   }
 
   private buildFence(): void {
-    const m = mat(0xfff1dc);
+    const m = mat(this.theme.fence);
     const len = this.bounds * 2;
     for (const [x, z, ry] of [
       [0, this.bounds, 0],

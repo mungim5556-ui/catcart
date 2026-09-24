@@ -5,15 +5,17 @@ export type RacePhase = 'countdown' | 'racing' | 'finished';
 export const TOTAL_LAPS = 3;
 const COUNTDOWN = 3.5; // "3", "2", "1" then GO; the first 0.5 s is a beat to settle
 const RECORD_KEY = 'catcart.records.v1';
+const recordKey = (trackId: string) => `${RECORD_KEY}.${trackId}`;
 
 export interface Records {
   bestTotal: number | null;
   bestLap: number | null;
 }
 
-function loadRecords(): Records {
+export function loadRecords(trackId: string): Records {
   try {
-    const raw = localStorage.getItem(RECORD_KEY);
+    // The first track's records predate per-track keys.
+    const raw = localStorage.getItem(recordKey(trackId)) ?? (trackId === 'meadow' ? localStorage.getItem(RECORD_KEY) : null);
     if (raw) return { bestTotal: null, bestLap: null, ...JSON.parse(raw) };
   } catch {
     /* storage unavailable: records just won't persist */
@@ -21,9 +23,9 @@ function loadRecords(): Records {
   return { bestTotal: null, bestLap: null };
 }
 
-function saveRecords(r: Records): void {
+function saveRecords(trackId: string, r: Records): void {
   try {
-    localStorage.setItem(RECORD_KEY, JSON.stringify(r));
+    localStorage.setItem(recordKey(trackId), JSON.stringify(r));
   } catch {
     /* ignore */
   }
@@ -35,11 +37,17 @@ export class RaceSession {
   countdown = COUNTDOWN;
   time = 0;
   lapTimes: number[] = [];
-  records: Records = loadRecords();
+  trackId = 'meadow';
+  records: Records = loadRecords(this.trackId);
   /** Previous records, kept so the results screen can say "new record!". */
   prevRecords: Records = { ...this.records };
   rocketStart = false;
   private throttleHeld = 0; // how long throttle has been held during the countdown
+
+  setTrack(id: string): void {
+    this.trackId = id;
+    this.records = loadRecords(id);
+  }
 
   restart(): void {
     this.phase = 'countdown';
@@ -101,7 +109,7 @@ export class RaceSession {
       this.phase = 'finished';
       if (this.records.bestTotal === null || this.time < this.records.bestTotal) this.records.bestTotal = this.time;
     }
-    saveRecords(this.records);
+    saveRecords(this.trackId, this.records);
     return this.phase === 'finished';
   }
 }

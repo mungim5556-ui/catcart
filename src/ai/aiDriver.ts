@@ -26,7 +26,7 @@ export class AiDriver {
   private willDrift = true;
 
   constructor(
-    private track: Track,
+    public track: Track,
     readonly profile: AiProfile,
   ) {}
 

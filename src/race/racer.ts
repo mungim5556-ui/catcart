@@ -17,7 +17,7 @@ export class Racer implements ItemHolder {
   model: CatKart;
   name = '';
   style!: CatStyle;
-  readonly tracker: LapTracker;
+  tracker: LapTracker;
   readonly ai: AiDriver;
   /** Base pace for AI (difficulty/personality); catch-up is applied on top. */
   pace = 1;
@@ -44,6 +44,11 @@ export class Racer implements ItemHolder {
     // The player gets a driver too: it takes over after the finish line.
     this.ai = new AiDriver(track, { laneBias: 0, driftSkill: 0.8 });
     this.setCharacter(character);
+  }
+
+  setTrack(track: Track): void {
+    this.tracker = new LapTracker(track);
+    this.ai.track = track;
   }
 
   /** Switches which cat this racer is (model, name and AI personality). */

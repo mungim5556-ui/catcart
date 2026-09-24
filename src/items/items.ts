@@ -8,7 +8,6 @@ export const ITEM_NAME: Record<ItemKind, string> = { fish: '생선 부스트', y
 
 const ROULETTE_TIME = 1.2;
 const BOX_RESPAWN = 3;
-const BOX_ROWS = [0.06, 0.31, 0.58, 0.8];
 const BOX_LANES = [-4.5, -1.5, 1.5, 4.5];
 const YARN_SPEED = 46;
 const YARN_LIFE = 7;
@@ -133,7 +132,7 @@ export class ItemSystem {
     const tex = boxTexture();
     // Self-lit so the boxes pop from a distance and in shadow.
     const boxMat = mat(0xffffff, { map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.55, transparent: true, opacity: 0.92 });
-    for (const t of BOX_ROWS) {
+    for (const t of track.def.boxRows) {
       const i = Math.floor(t * SAMPLES) % SAMPLES;
       const p = track.points[i];
       const tan = track.tangents[i];

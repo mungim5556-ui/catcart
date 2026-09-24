@@ -4,6 +4,16 @@ import { RaceSession, TOTAL_LAPS, formatTime } from '../race/raceSession';
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
+export type ResultAction = 'again' | 'menu' | 'next';
+
+/** Cup standings shown on the results card. */
+export interface CupView {
+  race: number; // 1-based
+  total: number;
+  final: boolean;
+  table: { racer: Racer; points: number; gained: number }[];
+}
+
 const $ = (id: string) => document.getElementById(id)!;
 
 /** Lap/timer panel, countdown, wrong-way warning, minimap and results screen. */
@@ -20,11 +30,16 @@ export class RaceHud {
   private lastPos = 0;
   private map = $('minimap') as HTMLCanvasElement;
   private mapCtx = this.map.getContext('2d')!;
-  private mapBg: HTMLCanvasElement;
+  private mapBg!: HTMLCanvasElement;
   private lastCount: number | null = null;
-  private project: (x: number, z: number) => [number, number];
+  private project!: (x: number, z: number) => [number, number];
 
   constructor(track: Track) {
+    this.setTrack(track);
+  }
+
+  /** Rebuilds the minimap for a new track. */
+  setTrack(track: Track): void {
     // Fit the centre line into the minimap canvas.
     const size = this.map.width;
     const pad = 12;
@@ -139,7 +154,7 @@ export class RaceHud {
     this.count.classList.add('pop');
   }
 
-  showResults(race: RaceSession, standings: Racer[], player: Racer): void {
+  showResults(race: RaceSession, standings: Racer[], player: Racer, cup?: CupView): void {
     const prev = race.prevRecords;
     const place = standings.indexOf(player) + 1;
     const board = standings
@@ -163,25 +178,42 @@ export class RaceHud {
         <h2>${place === 1 ? '🏆' : '🏁'} ${place}위로 완주!</h2>
         <div class="total">${formatTime(race.time)}${newTotal ? '<span class="rec">신기록!</span>' : ''}</div>
         <table class="board">${board}</table>
-        <table class="laps">${rows}</table>
+        ${cup ? this.cupTable(cup, player) : `<table class="laps">${rows}</table>`}
         <p class="bests">
           최고 기록 ${formatTime(race.records.bestTotal)}<br />
           최고 랩 ${formatTime(race.records.bestLap)}${newLap ? ' <span class="rec">NEW</span>' : ''}
         </p>
         <div class="result-buttons">
-          <button data-result="again">↻ 다시 달리기 <kbd>Enter</kbd></button>
+          ${
+            cup && !cup.final
+              ? '<button data-result="next">다음 레이스 ▶ <kbd>Enter</kbd></button>'
+              : `<button data-result="again">↻ ${cup ? '컵 다시 도전' : '다시 달리기'} <kbd>Enter</kbd></button>`
+          }
           <button data-result="menu">🏠 메인 메뉴 <kbd>Esc</kbd></button>
         </div>
       </div>`;
     this.results.classList.add('show');
   }
 
-  /** Result screen buttons: 'again' or 'menu'. */
-  onAction(fn: (action: 'again' | 'menu') => void): void {
+  /** Result screen buttons. */
+  onAction(fn: (action: ResultAction) => void): void {
     this.results.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-result]');
-      if (b) fn(b.dataset.result as 'again' | 'menu');
+      if (b) fn(b.dataset.result as ResultAction);
     });
+  }
+
+  private cupTable(cup: CupView, player: Racer): string {
+    const rows = cup.table
+      .map(
+        (r, i) =>
+          `<tr class="${r.racer === player ? 'me' : ''}"><td>${i + 1}</td><td><i style="background:${hex(r.racer.style.kart)}"></i>${r.racer.name}</td><td>${r.points}점 <small>+${r.gained}</small></td></tr>`,
+      )
+      .join('');
+    const title = cup.final
+      ? `${cup.table[0].racer === player ? '🏆 냥냥컵 우승!' : `🏅 냥냥컵 최종 ${cup.table.findIndex((r) => r.racer === player) + 1}위`}`
+      : `냥냥컵 ${cup.race} / ${cup.total} — 종합 순위`;
+    return `<h3 class="cup-title">${title}</h3><table class="board cup">${rows}</table>`;
   }
 
   hideResults(): void {

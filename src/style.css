@@ -279,3 +279,36 @@ table.controls td:first-child { white-space: nowrap; text-align: right; }
 @keyframes streak { 50% { transform: rotate(1.4deg) scale(1.02); } }
 body.in-menu #speedlines { display: none; }
 @media (max-width: 600px) { #surface { top: 140px; } }
+
+/* Track select */
+#menus.track { align-items: flex-end; }
+.track-bar {
+  pointer-events: auto; background: rgba(255,255,255,.94); border-radius: 26px 26px 0 0;
+  padding: 16px 20px 12px; width: min(760px, 100vw); text-align: center; box-shadow: 0 -6px 24px rgba(0,0,0,.15);
+}
+.track-cards { display: flex; gap: 12px; justify-content: center; margin-bottom: 12px; }
+.track-card {
+  flex: 1 1 0; max-width: 220px; border: 3px solid transparent; border-radius: 18px; background: #f4effb;
+  padding: 8px 8px 10px; color: #3a2e4f; transition: transform .12s;
+}
+.track-card img { width: 100%; max-width: 130px; aspect-ratio: 1; display: block; margin: 0 auto; background: #cfe9c3; border-radius: 50%; }
+.track-card .tname { font-weight: 900; font-size: 17px; margin-top: 4px; }
+.track-card .tdesc { font-size: 12px; opacity: .7; min-height: 30px; }
+.track-card .tbest { font-size: 12px; font-weight: 700; color: #7a5cff; margin-top: 2px; }
+.track-card.on { border-color: #ff6f91; background: #fff; transform: translateY(-4px); box-shadow: 0 6px 0 #ffd0dc; }
+.track-bar .go {
+  border: 0; border-radius: 18px; padding: 12px 40px; background: #ff6f91; color: #fff; font-size: 22px; font-weight: 900;
+  box-shadow: 0 5px 0 #c94f6f;
+}
+.track-bar .hint { color: #3a2e4f; text-shadow: none; opacity: .6; margin: 10px 0 0; }
+#results .cup-title { margin: 12px 0 2px; font-size: 16px; color: #7a5cff; }
+#results table.board.cup small { color: #52c77a; font-weight: 800; margin-left: 2px; }
+@media (max-height: 700px), (max-width: 600px) {
+  .track-bar { padding: 8px 10px; }
+  .track-cards { gap: 6px; margin-bottom: 8px; }
+  .track-card img { max-width: 70px; }
+  .track-card .tdesc { display: none; }
+  .track-card .tname { font-size: 14px; }
+  .track-bar .go { padding: 8px 32px; font-size: 18px; }
+  .track-bar .hint { display: none; }
+}
