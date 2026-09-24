@@ -20,6 +20,10 @@ export class Hud {
     this.help.classList.toggle('hidden');
   }
 
+  setHelp(visible: boolean): void {
+    this.help.classList.toggle('hidden', !visible);
+  }
+
   flash(text: string, color: string): void {
     this.banner.textContent = text;
     this.banner.style.color = color;

@@ -39,10 +39,11 @@ export const KART = {
   /** Boost duration awarded for each mini-turbo level. */
   driftBoost: [0, 0.6, 1.1, 1.7],
   padBoost: 1.2,
+  rocketBoost: 1.3,
 };
 
-/** Drift mini-turbo level (1-3) or a boost pad. */
-export type BoostSource = number | 'pad';
+/** Drift mini-turbo level (1-3), a boost pad, or a rocket start. */
+export type BoostSource = number | 'pad' | 'rocket';
 
 export interface StepEvents {
   landed: number; // impact speed when touching down this step
@@ -224,6 +225,10 @@ export class KartPhysics {
       this.events.hit = true;
       if (this.drifting) this.drifting = false;
     }
+  }
+
+  rocketStart(): void {
+    this.addBoost(KART.rocketBoost, 'rocket');
   }
 
   private addBoost(seconds: number, source: BoostSource): void {

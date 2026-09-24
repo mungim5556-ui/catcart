@@ -58,3 +58,73 @@ kbd { background: #fff; color: #333; border-radius: 4px; padding: 0 5px; font-si
   #speedo { font-size: 38px; right: 16px; }
   #banner { font-size: 36px; }
 }
+
+/* ---------- Race HUD ---------- */
+#race {
+  position: absolute; right: 20px; top: 16px; text-align: right;
+  font-weight: 900; font-style: italic; text-shadow: 0 2px 0 #ff6f91, 0 4px 10px rgba(0,0,0,.25);
+}
+#lap-row { font-size: 44px; line-height: 1; }
+#lap-row small { font-size: 18px; }
+#time { font-size: 28px; font-variant-numeric: tabular-nums; }
+#splits { font-size: 14px; font-style: normal; font-weight: 700; margin-top: 4px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+#splits span { font-variant-numeric: tabular-nums; margin-left: 6px; }
+#best { font-size: 13px; font-style: normal; font-weight: 700; opacity: .9; margin-top: 2px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+
+#minimap {
+  position: absolute; left: 16px; bottom: 16px; width: 170px; height: 170px;
+  background: rgba(40, 30, 60, .35); border-radius: 50%;
+}
+
+#countdown {
+  position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%);
+  font-size: 140px; font-weight: 900; font-style: italic; opacity: 0;
+  color: #fff; text-shadow: 0 6px 0 #ff6f91, 0 12px 24px rgba(0,0,0,.3);
+}
+#countdown.pop { animation: count 1s ease-out forwards; }
+@keyframes count {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(2); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.8); }
+}
+
+#wrongway {
+  position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
+  font-size: 34px; font-weight: 900; color: #fff; background: rgba(230, 60, 80, .85);
+  padding: 6px 20px; border-radius: 12px; display: none;
+  animation: blink .6s steps(2) infinite;
+}
+#wrongway.show { display: block; }
+@keyframes blink { 50% { opacity: .35; } }
+
+#results {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  background: rgba(40, 30, 60, .45); pointer-events: auto;
+}
+#results.show { display: flex; }
+#results .card {
+  background: #fff; color: #3a2e4f; border-radius: 22px; padding: 22px 32px; min-width: 280px;
+  text-align: center; box-shadow: 0 10px 0 #ff6f91, 0 20px 40px rgba(0,0,0,.25);
+  animation: rise .4s ease-out;
+}
+@keyframes rise { from { transform: translateY(30px) scale(.9); opacity: 0; } }
+#results h2 { margin: 0 0 4px; font-size: 30px; }
+#results .total { font-size: 40px; font-weight: 900; font-variant-numeric: tabular-nums; color: #ff6f91; }
+#results table { margin: 10px auto; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#results td { padding: 3px 12px; font-weight: 700; }
+#results tr.fast td { color: #7a4fd6; }
+#results tr.fast td:first-child::before { content: '⚡ '; }
+#results .bests { font-size: 14px; opacity: .8; margin: 8px 0; }
+#results .rec {
+  display: inline-block; margin-left: 8px; font-size: 14px; color: #fff; background: #ffb300;
+  padding: 2px 8px; border-radius: 10px; vertical-align: middle;
+}
+#results .again { margin: 10px 0 0; font-weight: 700; }
+
+@media (max-width: 600px) {
+  #lap-row { font-size: 30px; }
+  #time { font-size: 20px; }
+  #minimap { width: 110px; height: 110px; }
+  #countdown { font-size: 90px; }
+}

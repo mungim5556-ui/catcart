@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { KartWorld } from '../kart/kartPhysics';
 
 export const ROAD_WIDTH = 16;
-const SAMPLES = 400;
+export const SAMPLES = 400;
 
 interface Rect {
   // oriented rectangle on the ground: center, forward axis, half sizes
@@ -51,8 +51,9 @@ export class Track implements KartWorld {
   readonly group = new THREE.Group();
   readonly curve: THREE.CatmullRomCurve3;
   readonly bounds = 170;
-  private points: THREE.Vector3[];
-  private tangents: THREE.Vector3[];
+  /** Evenly spaced centre-line samples (index 0 = start/finish line). */
+  readonly points: THREE.Vector3[];
+  readonly tangents: THREE.Vector3[];
   private pads: Rect[] = [];
   private ramps: Ramp[] = [];
   private obstacles: Circle[] = [];
@@ -163,6 +164,22 @@ export class Track implements KartWorld {
     vel.x *= 0.7;
     vel.z *= 0.7;
     return vn < -2;
+  }
+
+  /** Like nearest(), but only searches `range` samples either side of `hint`. */
+  nearestAround(x: number, z: number, hint: number, range: number): { index: number; dist: number } {
+    let best = hint;
+    let bestD = Infinity;
+    for (let o = -range; o <= range; o++) {
+      const i = (hint + o + SAMPLES) % SAMPLES;
+      const p = this.points[i];
+      const d = (p.x - x) ** 2 + (p.z - z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return { index: best, dist: Math.sqrt(bestD) };
   }
 
   nearest(x: number, z: number): { index: number; dist: number } {

@@ -8,6 +8,9 @@ import { CatKart } from './kart/catKart';
 import { Track } from './world/track';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
 import { Hud } from './ui/hud';
+import { RaceHud } from './ui/raceHud';
+import { LapTracker } from './race/lapTracker';
+import { RaceSession, TOTAL_LAPS } from './race/raceSession';
 
 const STEP = 1 / 60;
 const SKY = 0xbfe6ff;
@@ -52,6 +55,27 @@ chase.snap(kart);
 const input = new Input();
 const hud = new Hud();
 
+const prevPos = kart.pos.clone();
+const renderPos = new THREE.Vector3();
+let prevYaw = kart.yaw;
+
+const tracker = new LapTracker(track);
+tracker.reset(kart.pos);
+const race = new RaceSession();
+const raceHud = new RaceHud(track);
+let firstStart = true;
+
+function restartRace(): void {
+  const s = track.startPose();
+  kart.place(s.pos, s.yaw);
+  tracker.reset(kart.pos);
+  race.restart();
+  raceHud.hideResults();
+  chase.snap(kart);
+  prevPos.copy(kart.pos);
+  prevYaw = kart.yaw;
+}
+
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   chase.camera.aspect = window.innerWidth / window.innerHeight;
@@ -63,6 +87,7 @@ function stepEffects(): void {
   const e = kart.events;
   if (e.boost !== null) {
     if (e.boost === 'pad') hud.flash('부스트!', '#ffb300');
+    else if (e.boost === 'rocket') hud.flash('로켓 스타트!', '#ff6f91');
     else hud.flash(['', '미니 터보!', '슈퍼 터보!', '울트라 터보!'][e.boost], '#' + DRIFT_COLORS[e.boost].toString(16));
     chase.bump(0.25);
   }
@@ -85,9 +110,6 @@ function frameEffects(): void {
 }
 
 // --- Main loop: fixed-step physics, interpolated rendering ---
-const prevPos = kart.pos.clone();
-const renderPos = new THREE.Vector3();
-let prevYaw = kart.yaw;
 let acc = 0;
 let last = performance.now();
 let lastInput: KartInput = input.read(0);
@@ -98,13 +120,27 @@ function frame(now: number): void {
   acc += dt;
 
   if (input.consumePress('KeyH')) hud.toggleHelp();
+  const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
+  if (enter && race.phase === 'finished') restartRace();
 
   while (acc >= STEP) {
     prevPos.copy(kart.pos);
     prevYaw = kart.yaw;
-    lastInput = input.read(STEP);
+    const gated = race.step(STEP, input.read(STEP));
+    lastInput = gated.input;
+    if (gated.started) {
+      raceHud.go();
+      if (race.rocketStart) kart.rocketStart();
+      if (firstStart) hud.setHelp(false);
+      firstStart = false;
+    }
     kart.step(STEP, lastInput, track);
     stepEffects();
+    if (tracker.update(kart.pos, kart.vel, STEP)) {
+      if (race.completeLap()) raceHud.showResults(race);
+      else if (race.currentLap === TOTAL_LAPS) hud.flash('마지막 랩!', '#ff6f91');
+      else hud.flash(`LAP ${race.currentLap}`, '#ffffff');
+    }
     if (lastInput.reset) {
       prevPos.copy(kart.pos);
       prevYaw = kart.yaw;
@@ -126,6 +162,7 @@ function frame(now: number): void {
   sparks.update(dt);
   chase.update(kart, renderPos, dt);
   hud.update(kart, dt);
+  raceHud.update(race, tracker, renderPos.x, renderPos.z, renderYaw);
 
   sun.position.set(renderPos.x + 30, 60, renderPos.z + 20);
   sun.target.position.copy(renderPos);
@@ -136,4 +173,4 @@ function frame(now: number): void {
 requestAnimationFrame(frame);
 
 // Handy for tuning from the browser console: window.catcart.KART.maxSpeed = 30
-Object.assign(window, { catcart: { kart, track, scene, KART, KartPhysics } });
+Object.assign(window, { catcart: { kart, track, scene, KART, KartPhysics, race, tracker, raceHud, LapTracker, RaceSession } });
