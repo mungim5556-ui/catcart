@@ -23,7 +23,7 @@ body { font-family: 'Trebuchet MS', 'Apple SD Gothic Neo', 'Malgun Gothic', sans
 #drift-fill { height: 100%; width: 0; }
 
 #surface {
-  position: absolute; left: 50%; top: 22px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 122px; transform: translateX(-50%);
   background: rgba(60,120,40,.75); padding: 6px 14px; border-radius: 16px;
   font-weight: 700; opacity: 0; transition: opacity .2s;
 }
@@ -266,3 +266,16 @@ table.controls td:first-child { white-space: nowrap; text-align: right; }
   .select-bar .go { padding: 8px 32px; font-size: 18px; }
   .select-bar .hint { display: none; }
 }
+
+/* Boost speed lines: radial streaks around the screen edge. */
+#speedlines {
+  position: fixed; inset: -10%; pointer-events: none; opacity: 0; transition: opacity .25s;
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 2.6deg, rgba(255,255,255,.55) 2.8deg 3.1deg, transparent 3.3deg 7deg);
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 38%, #000 78%);
+  mask-image: radial-gradient(ellipse at center, transparent 38%, #000 78%);
+  animation: streak .12s steps(2) infinite;
+}
+#speedlines.on { opacity: .75; }
+@keyframes streak { 50% { transform: rotate(1.4deg) scale(1.02); } }
+body.in-menu #speedlines { display: none; }
+@media (max-width: 600px) { #surface { top: 140px; } }

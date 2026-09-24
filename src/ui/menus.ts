@@ -24,6 +24,11 @@ export interface MenuHandlers {
   onResume(): void;
   onRestart(): void;
   onQuit(): void;
+  /** Flip sound on/off; returns the new state. */
+  onToggleSound(): boolean;
+  soundOn(): boolean;
+  /** UI feedback sound. */
+  onSound(kind: 'move' | 'select'): void;
 }
 
 const PREFS_KEY = 'catcart.prefs.v1';
@@ -69,6 +74,7 @@ export class Menus {
   key(code: string): boolean {
     if (this.screen === 'none') return false;
     const buttons = this.buttons();
+    const before = `${this.focus}/${this.cat}/${this.diff}`;
     switch (code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -102,6 +108,7 @@ export class Menus {
       default:
         return false;
     }
+    if (`${this.focus}/${this.cat}/${this.diff}` !== before) this.h.onSound('move');
     this.render();
     return true;
   }
@@ -112,6 +119,7 @@ export class Menus {
         return [
           { label: '🏁 레이스 시작', action: 'select' },
           { label: '🎮 조작법', action: 'controls' },
+          this.soundButton(),
         ];
       case 'controls':
         return [{ label: '← 돌아가기', action: 'title' }];
@@ -120,6 +128,7 @@ export class Menus {
           { label: '▶ 계속하기', action: 'resume' },
           { label: '↻ 다시 시작', action: 'restart' },
           { label: '🏠 메인 메뉴', action: 'quit' },
+          this.soundButton(),
         ];
       default:
         return [];
@@ -127,6 +136,7 @@ export class Menus {
   }
 
   private act(action: string): void {
+    this.h.onSound('select');
     if (action.startsWith('cat:')) return this.setCat(+action.slice(4));
     if (action.startsWith('diff:')) return this.setDiff(+action.slice(5));
     switch (action) {
@@ -153,7 +163,19 @@ export class Menus {
         return this.h.onRestart();
       case 'quit':
         return this.h.onQuit();
+      case 'sound':
+        this.h.onToggleSound();
+        return this.render();
     }
+  }
+
+  private soundButton(): { label: string; action: string } {
+    return { label: this.h.soundOn() ? '🔊 소리 켜짐 (M)' : '🔇 소리 꺼짐 (M)', action: 'sound' };
+  }
+
+  /** Re-draw (e.g. after the sound was toggled with the M key). */
+  refresh(): void {
+    if (this.screen !== 'none') this.render();
   }
 
   private setCat(i: number): void {

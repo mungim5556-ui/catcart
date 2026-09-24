@@ -13,6 +13,8 @@ import { RaceSession, TOTAL_LAPS } from './race/raceSession';
 import { IDLE_INPUT, Racer, collideKarts } from './race/racer';
 import { ItemSystem, type ItemEvent } from './items/items';
 import { ItemHud } from './ui/itemHud';
+import { GameAudio } from './audio/audio';
+import { SkidMarks } from './fx/skidMarks';
 import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
 
 const STEP = 1 / 60;
@@ -63,6 +65,17 @@ const items = new ItemSystem(track);
 scene.add(items.group);
 const itemHud = new ItemHud();
 
+const audio = new GameAudio();
+// Browsers only allow sound after a user gesture.
+for (const ev of ['keydown', 'pointerdown'] as const) window.addEventListener(ev, () => audio.unlock(), { capture: true });
+
+const skids = new SkidMarks();
+scene.add(skids.mesh);
+/** Last rear-wheel ground points per racer while drifting (for tyre marks). */
+const skidPrev = new Map<Racer, THREE.Vector3[]>();
+let confetti = 0;
+const speedlines = document.getElementById('speedlines')!;
+
 const sparks = new Sparks(320);
 scene.add(sparks.group);
 
@@ -97,8 +110,15 @@ function restartRace(): void {
   race.restart();
   raceHud.hideResults();
   items.clear();
+  skids.clear();
+  skidPrev.clear();
+  confetti = 0;
+  lastCount = null;
   mode = 'race';
   input.clearPresses();
+  audio.duck(false);
+  audio.setTempo(1);
+  audio.setSong('race');
 }
 
 // --- Game flow: title → cat select → race ⇄ pause ---
@@ -116,9 +136,13 @@ const menus = new Menus(ROSTER, {
   onResume: () => {
     mode = 'race';
     input.clearPresses();
+    audio.duck(false);
   },
   onRestart: () => restartRace(),
   onQuit: () => goToTitle(),
+  onToggleSound: () => audio.toggle(),
+  soundOn: () => audio.enabled,
+  onSound: (k) => (k === 'move' ? audio.menuMove() : audio.menuSelect()),
 });
 
 function goToTitle(): void {
@@ -129,6 +153,12 @@ function goToTitle(): void {
   placeOnGrid();
   menus.show('title');
   input.clearPresses();
+  skids.clear();
+  skidPrev.clear();
+  confetti = 0;
+  audio.duck(false);
+  audio.setTempo(1);
+  audio.setSong('menu');
 }
 
 function pause(): void {
@@ -136,6 +166,7 @@ function pause(): void {
   mode = 'paused';
   input.clearPresses(); // don't let drift/steer taps from the race drive the menu
   menus.show('pause');
+  audio.duck(true);
 }
 document.addEventListener('visibilitychange', () => document.hidden && pause());
 window.addEventListener('blur', pause);
@@ -169,9 +200,17 @@ function playerStepEffects(): void {
     else if (e.boost === 'fish') hud.flash('생선 부스트!', '#4fc3ff');
     else hud.flash(['', '미니 터보!', '슈퍼 터보!', '울트라 터보!'][e.boost], '#' + DRIFT_COLORS[e.boost].toString(16));
     chase.bump(0.25);
+    audio.boost(e.boost);
   }
-  if (e.hit) chase.bump(0.5);
+  if (e.hit) {
+    chase.bump(0.5);
+    audio.bump();
+  }
+  if (e.hop) audio.hop();
+  if (kart.driftLevel > lastDriftLevel) audio.driftLevel(kart.driftLevel);
+  lastDriftLevel = kart.driftLevel;
   if (e.landed > 6) {
+    audio.land(e.landed);
     chase.bump(Math.min(0.4, e.landed * 0.03));
     for (let i = 0; i < 12; i++) sparks.emit(kart.pos.clone().setY(kart.pos.y + 0.2), 0xf3ead8, 8, 2.5, 0.5, 2);
   }
@@ -180,8 +219,18 @@ function playerStepEffects(): void {
 function frameEffects(r: Racer): void {
   const kart = r.physics;
   // Skip particles for karts far from the camera.
-  if (!r.isPlayer && kart.pos.distanceToSquared(player.physics.pos) > 80 * 80) return;
+  if (!r.isPlayer && kart.pos.distanceToSquared(player.physics.pos) > 80 * 80) {
+    skidPrev.delete(r);
+    return;
+  }
   const rear = r.model.rearWheelPoints();
+  // Tyre marks while drifting or spinning out.
+  if ((kart.drifting || kart.spinTime > 0) && kart.grounded) {
+    const pts = rear.map((p) => p.clone().setY(track.heightAt(p.x, p.z) + 0.03));
+    const prev = skidPrev.get(r);
+    if (prev) pts.forEach((p, i) => skids.add(prev[i], p));
+    skidPrev.set(r, pts);
+  } else skidPrev.delete(r);
   if (kart.drifting && kart.grounded) {
     const color = DRIFT_COLORS[kart.driftLevel];
     const size = kart.driftLevel ? 1.3 : 1.8;
@@ -192,6 +241,11 @@ function frameEffects(r: Racer): void {
 }
 
 function itemEffects(e: ItemEvent): void {
+  if (e.type === 'got' && e.racer === player) audio.itemGot();
+  if (e.type === 'used' && e.racer === player) {
+    if (e.item === 'yarn') audio.throwYarn();
+    else if (e.item === 'banana') audio.dropBanana();
+  }
   if (e.type !== 'hit') return;
   const near = e.victim.physics.pos.distanceToSquared(player.physics.pos) < 60 * 60;
   if (near) {
@@ -201,9 +255,11 @@ function itemEffects(e: ItemEvent): void {
   if (e.victim === player) {
     hud.flash(e.item === 'banana' ? '미끄덩!' : '냐앙!', '#ff5a6e');
     chase.bump(0.7);
+    audio.meow();
   } else if (e.by === player) {
     hud.flash(`${e.victim.name} 명중!`, '#ffb300');
-  }
+    audio.hitSomeone();
+  } else if (near) audio.meow(0.06);
 }
 
 // --- Simulation step ---
@@ -216,7 +272,11 @@ function step(): void {
 
   // Player input goes through the race session (countdown lock, timing).
   const gated = race.step(STEP, inputOverride ? inputOverride() : input.read(STEP));
+  const count = race.countdownLabel;
+  if (count !== lastCount && count !== null) audio.countdown(false);
+  lastCount = count;
   if (gated.started) {
+    audio.countdown(true);
     raceHud.go();
     if (race.rocketStart) player.physics.rocketStart();
     for (const r of rivals) if (Math.random() < r.rocketChance) r.physics.rocketStart();
@@ -226,7 +286,11 @@ function step(): void {
   const order = standings();
   const hazards = items.hazards;
 
-  if (race.phase === 'racing' && gated.input.useItem) items.use(player, order);
+  if (race.phase === 'racing' && gated.input.useItem) {
+    const used = items.use(player, order);
+    if (used) itemEffects(used);
+  }
+  const hadRoulette = player.roulette > 0;
   if (racing) for (const r of rivals) if (items.aiWantsToUse(r, order)) items.use(r, order);
 
   // After the finish line the player's kart drives itself.
@@ -256,6 +320,7 @@ function step(): void {
     r.physics.drifting = false;
   }
   if (racing) for (const e of items.update(STEP, racers, order)) itemEffects(e);
+  if (!hadRoulette && player.roulette > 0) audio.itemBox();
   playerStepEffects();
 
   for (const r of racers) {
@@ -263,9 +328,17 @@ function step(): void {
     if (r.isPlayer) {
       if (race.completeLap()) {
         player.finishTime = race.time;
+        audio.finish(standings().indexOf(player) + 1);
+        confetti = 2.5;
         onFinish();
-      } else if (race.currentLap === TOTAL_LAPS) hud.flash('마지막 랩!', '#ff6f91');
-      else hud.flash(`LAP ${race.currentLap}`, '#ffffff');
+      } else if (race.currentLap === TOTAL_LAPS) {
+        hud.flash('마지막 랩!', '#ff6f91');
+        audio.lap(true);
+        audio.setTempo(1.12);
+      } else {
+        hud.flash(`LAP ${race.currentLap}`, '#ffffff');
+        audio.lap(false);
+      }
     } else if (!r.finished && r.tracker.lap >= TOTAL_LAPS && race.phase !== 'countdown') {
       r.finishTime = clock;
       onFinish();
@@ -275,6 +348,41 @@ function step(): void {
   else if (race.phase === 'finished') clock += STEP;
   // Drift press edge is consumed by the first step that sees it.
   player.lastInput.driftPressed = false;
+}
+
+// --- Per-frame audio & screen effects ---
+let lastDriftLevel = 0;
+let lastCount: number | null = null;
+let tickTimer = 0;
+const CONFETTI = [0xff6f91, 0xffb300, 0x4fc3ff, 0x52c77a, 0xc9a4ff, 0xffffff];
+
+function frameAudio(dt: number): void {
+  if (input.consumePress('KeyM')) {
+    audio.toggle();
+    menus.refresh();
+  }
+  const k = player.physics;
+  const racing = mode === 'race';
+  audio.drive(k.forwardSpeed, player.lastInput.throttle, k.boostTime > 0, k.drifting && k.grounded, k.driftLevel, k.offroad && k.grounded, racing);
+  speedlines.classList.toggle('on', racing && k.boostTime > 0);
+
+  // Roulette clicks.
+  if (racing && player.roulette > 0) {
+    tickTimer -= dt;
+    if (tickTimer <= 0) {
+      audio.rouletteTick();
+      tickTimer = 0.07;
+    }
+  }
+
+  // Finish-line confetti rains around the player for a couple of seconds.
+  if (confetti > 0 && mode !== 'paused') {
+    confetti -= dt;
+    for (let i = 0; i < 5; i++) {
+      const at = k.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 12, 5 + Math.random() * 3, (Math.random() - 0.5) * 12));
+      sparks.emit(at, CONFETTI[Math.floor(Math.random() * CONFETTI.length)], 3, 1, 1.4, 1.8);
+    }
+  }
 }
 
 // --- Menu cameras ---
@@ -353,6 +461,7 @@ function frame(now: number): void {
   }
   else if (mode !== 'paused') menuCamera(dt);
   hud.update(player.physics, dt);
+  frameAudio(dt);
   itemHud.update(player, dt);
   raceHud.update(race, player, standings());
 
@@ -368,7 +477,7 @@ requestAnimationFrame(frame);
 Object.assign(window, {
   catcart: {
     player, rivals, racers, track, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings, items,
-    step, restartRace, menus,
+    step, restartRace, menus, audio,
     setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
   },
 });
