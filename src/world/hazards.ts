@@ -6,7 +6,7 @@ import { mergeStatic } from './mergeStatic';
 /**
  * Themed track obstacles. Every kind spins a kart out on contact, but each moves its own way:
  *  - sweepers cross the road from kerb to kerb (🤖 🦀 ☃️ 🦔)
- *  - poppers sit on the road and burst open on a 3 s timer, one after another (🌸 ♨️ 🍄)
+ *  - poppers sit on the road and burst open on a 3 s timer (🌸 ♨️ 🍄)
  *  - fliers wander around a spot, dipping low now and then (🦋 🌪️)
  *  - bouncers hop up and down, safe to pass under while high (🏐)
  *  - patches guard the inside of tight bends (🐧 🌵)
@@ -446,11 +446,8 @@ export class TrackHazards {
       case 'flower':
       case 'steam':
       case 'mushroom':
-        // A staggered pair across the road; they burst open in turn.
-        for (const [k, [lat, along]] of ([[-3.8, -6], [3.8, 6]] as const).entries()) {
-          this.popper(kind, fr, lat * (n % 2 ? -1 : 1), along, (k * POP_PERIOD) / 2 + rand() * 0.2);
-        }
-        return;
+        // Just one, a little off-centre (alternating sides), so there's always a way past.
+        return this.popper(kind, fr, (n % 2 ? -1 : 1) * 2.5, 0, rand() * POP_PERIOD);
       case 'butterfly':
         this.flier('butterfly', fr, rand() * 10);
         return;
@@ -605,14 +602,14 @@ export class TrackHazards {
     this.add(h);
   }
 
-  /** Two of them on the inside half of the bend, staggered so you can weave through. */
+  /** One on the inside half of the bend: punishes cutting the corner. */
   private patch(kind: 'penguin' | 'cactus', fr: Frame): void {
     const i = this.track.points.indexOf(fr.p);
     const tans = this.track.tangents;
     const a = tans[(i - 6 + SAMPLES) % SAMPLES];
     const b = tans[(i + 6) % SAMPLES];
     const inside = a.x * b.z - a.z * b.x > 0 ? -1 : 1; // lateral sign of the inside of the bend
-    for (const [along, lat] of [[-7, 2.8], [7, 5.4]] as const) {
+    for (const [along, lat] of [[0, 3.6]] as const) {
       const pos = place(new THREE.Vector3(), fr, inside * (lat + this.rand() * 0.6), along);
       if (kind === 'cactus') {
         const obj = cactusMesh(this.rand);
