@@ -18,6 +18,7 @@ import { ItemSystem, type ItemEvent } from './items/items';
 import { ItemHud } from './ui/itemHud';
 import { GameAudio } from './audio/audio';
 import { SkidMarks } from './fx/skidMarks';
+import { Ceremony } from './fx/ceremony';
 import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
 import type { CupView } from './ui/raceHud';
 
@@ -95,6 +96,10 @@ const skidPrev = new Map<Racer, THREE.Vector3[]>();
 let confetti = 0;
 const speedlines = document.getElementById('speedlines')!;
 
+// Cup ceremony stage (hidden until a cup ends).
+const ceremony = new Ceremony();
+scene.add(ceremony.group);
+const ceremonyEl = document.getElementById('ceremony')!;
 const sparks = new Sparks(320);
 scene.add(sparks.group);
 
@@ -143,11 +148,11 @@ function restartRace(): void {
   audio.setTempo(1);
   audio.setSong('race');
   const name = `${track.def.emoji} ${track.def.name}`;
-  hud.flash(cup ? `${CUPS[cup.cup].name} ${cup.race + 1}/${cupTracks().length} · ${name}` : name, '#ffffff');
+  hud.intro(name, cup ? `${CUPS[cup.cup].emoji} ${CUPS[cup.cup].name} ${cup.race + 1} / ${cupTracks().length}` : track.def.desc);
 }
 
 // --- Game flow: title → cat select → race ⇄ pause ---
-type Mode = 'title' | 'select' | 'race' | 'paused';
+type Mode = 'title' | 'select' | 'race' | 'paused' | 'ceremony';
 let mode: Mode = 'title';
 let menuTime = 0;
 
@@ -188,6 +193,7 @@ const menus = new Menus(ROSTER, {
 });
 
 function goToTitle(): void {
+  endCeremony();
   mode = 'title';
   cup = null;
   loadTrack(menus.track);
@@ -282,6 +288,7 @@ function cupView(): CupView | undefined {
 }
 
 function startCup(which = cup?.cup ?? 0): void {
+  endCeremony();
   cup = { cup: which, race: 0, points: new Map() };
   loadTrack(cupTracks()[0]);
   restartRace();
@@ -295,8 +302,59 @@ function nextCupRace(): void {
   restartRace();
 }
 
-function resultAction(a: 'again' | 'menu' | 'next'): void {
-  if (a === 'next') nextCupRace();
+// --- Cup ceremony: the top three cats wave from the podium ---
+ceremonyEl.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-cer]');
+  if (b?.dataset.cer === 'again') startCup();
+  else if (b?.dataset.cer === 'menu') goToTitle();
+});
+
+function startCeremony(): void {
+  const view = cupView();
+  if (!view) return;
+  mode = 'ceremony';
+  raceHud.hideResults();
+  document.body.classList.add('in-ceremony');
+  // Swap the race world for the stage (sky, fog and light stay from the last track).
+  track.group.visible = items.group.visible = skids.mesh.visible = false;
+  for (const r of racers) r.root.visible = false;
+  const top = view.table.slice(0, 3);
+  ceremony.start(top.map((row) => row.racer.style));
+  const place = view.table.findIndex((row) => row.racer === player) + 1;
+  const medal = ['🥇', '🥈', '🥉'];
+  const cupDef = CUPS[cup!.cup];
+  const msg =
+    place === 1 ? '🎉 우승 축하해요! 🎉' : place <= 3 ? `${place}위 입상! 대단해요!` : `이번엔 ${place}위… 다음엔 시상대에 올라가 봐요!`;
+  ceremonyEl.innerHTML = `
+    <h1>${cupDef.emoji} ${cupDef.name} 시상식</h1>
+    <p class="cer-msg">${msg}</p>
+    <div class="cer-podium">${top
+      .map((row, i) => `<div class="cer-${i + 1} ${row.racer === player ? 'me' : ''}"><b>${medal[i]} ${row.racer.name}</b><small>${row.points}점</small></div>`)
+      .join('')}</div>
+    <div class="cer-buttons">
+      <button data-cer="again">↻ 컵 다시 도전</button>
+      <button data-cer="menu">🏠 메인 메뉴 <kbd>Enter</kbd></button>
+    </div>`;
+  ceremonyEl.classList.add('show');
+  confetti = 999; // until the ceremony ends
+  audio.lap(true);
+  audio.setTempo(1);
+  audio.setSong('menu');
+}
+
+function endCeremony(): void {
+  if (mode !== 'ceremony' && !ceremonyEl.classList.contains('show')) return;
+  ceremony.stop();
+  ceremonyEl.classList.remove('show');
+  document.body.classList.remove('in-ceremony');
+  track.group.visible = items.group.visible = skids.mesh.visible = true;
+  for (const r of racers) r.root.visible = true;
+  confetti = 0;
+}
+
+function resultAction(a: 'again' | 'menu' | 'next' | 'ceremony'): void {
+  if (a === 'ceremony') startCeremony();
+  else if (a === 'next') nextCupRace();
   else if (a === 'again') (cup ? startCup() : restartRace());
   else goToTitle();
 }
@@ -527,7 +585,8 @@ function frameAudio(dt: number): void {
   if (confetti > 0 && mode !== 'paused') {
     confetti -= dt;
     for (let i = 0; i < 5; i++) {
-      const at = k.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 12, 5 + Math.random() * 3, (Math.random() - 0.5) * 12));
+      const center = mode === 'ceremony' ? ceremony.focus : k.pos;
+      const at = center.clone().add(new THREE.Vector3((Math.random() - 0.5) * 12, 5 + Math.random() * 3, (Math.random() - 0.5) * 12));
       sparks.emit(at, CONFETTI[Math.floor(Math.random() * CONFETTI.length)], 3, 1, 1.4, 1.8);
     }
   }
@@ -591,9 +650,11 @@ function frame(now: number): void {
     const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
     const esc = input.consumePress('Escape') || input.consumePress('KeyP');
     if (race.phase === 'finished') {
-      if (enter) resultAction(cup && !cupView()!.final ? 'next' : 'again');
+      if (enter) resultAction(cup ? (cupView()!.final ? 'ceremony' : 'next') : 'again');
       else if (esc) goToTitle();
     } else if (esc) pause();
+  } else if (mode === 'ceremony') {
+    if (input.consumePress('Enter') || input.consumePress('NumpadEnter') || input.consumePress('Escape')) goToTitle();
   } else {
     for (const code of MENU_KEYS) if (input.consumePress(code)) menus.key(code);
   }
@@ -622,6 +683,7 @@ function frame(now: number): void {
     if (chase.camera.view?.enabled) chase.camera.clearViewOffset();
     chase.update(player.physics, player.renderPos, dt);
   }
+  else if (mode === 'ceremony') ceremony.update(dt, chase.camera);
   else if (mode !== 'paused') menuCamera(dt);
   hud.update(player.physics, dt);
   frameAudio(dt);
@@ -632,8 +694,10 @@ function frame(now: number): void {
     const f = player.physics.forward;
     kartLight.position.set(player.renderPos.x + f.x * 3, player.renderPos.y + 4, player.renderPos.z + f.z * 3);
   }
-  sun.position.set(player.renderPos.x + 30, 60, player.renderPos.z + 20);
-  sun.target.position.copy(player.renderPos);
+  const lightAt = mode === 'ceremony' ? ceremony.focus : player.renderPos;
+  if (mode === 'ceremony') kartLight.position.set(0, 9, 8);
+  sun.position.set(lightAt.x + 30, 60, lightAt.z + 20);
+  sun.target.position.copy(lightAt);
 
   renderer.render(scene, chase.camera);
   requestAnimationFrame(frame);

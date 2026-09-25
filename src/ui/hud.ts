@@ -22,6 +22,16 @@ export class Hud {
     this.surface.style.background = background;
   }
 
+  /** Track title card at the top of the screen while the countdown runs. */
+  intro(name: string, sub: string): void {
+    const el = document.getElementById('intro')!;
+    document.getElementById('intro-name')!.textContent = name;
+    document.getElementById('intro-sub')!.textContent = sub;
+    el.classList.remove('show');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('show');
+  }
+
   toggleHelp(): void {
     this.help.classList.toggle('hidden');
   }

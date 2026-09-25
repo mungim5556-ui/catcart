@@ -4,7 +4,7 @@ import { RaceSession, TOTAL_LAPS, formatTime } from '../race/raceSession';
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
-export type ResultAction = 'again' | 'menu' | 'next';
+export type ResultAction = 'again' | 'menu' | 'next' | 'ceremony';
 
 /** Cup standings shown on the results card. */
 export interface CupView {
@@ -188,7 +188,9 @@ export class RaceHud {
           ${
             cup && !cup.final
               ? '<button data-result="next">다음 레이스 ▶ <kbd>Enter</kbd></button>'
-              : `<button data-result="again">↻ ${cup ? '컵 다시 도전' : '다시 달리기'} <kbd>Enter</kbd></button>`
+              : cup
+                ? '<button data-result="ceremony">🏆 시상식 <kbd>Enter</kbd></button>'
+                : '<button data-result="again">↻ 다시 달리기 <kbd>Enter</kbd></button>'
           }
           <button data-result="menu">🏠 메인 메뉴 <kbd>Esc</kbd></button>
         </div>
