@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { Input, type KartInput } from './core/input';
-import { TouchControls } from './core/touch';
+import { SENSITIVITY, TouchControls } from './core/touch';
 import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
 import { ROSTER } from './kart/catKart';
@@ -31,11 +31,13 @@ const PLAYER_SLOT = 3;
 const CATCH_UP_BEHIND = 0.0007;
 
 // --- Renderer & scene ---
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+/** Phones get a lighter renderer: capped resolution and cheaper shadows. */
+const IS_PHONE = window.matchMedia?.('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_PHONE ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = IS_PHONE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 document.getElementById('app')!.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -46,7 +48,7 @@ const hemi = new THREE.HemisphereLight(0xeaf6ff, 0x7cc25c, 1.6);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.setScalar(IS_PHONE ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 150 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
@@ -190,6 +192,8 @@ const menus = new Menus(ROSTER, {
     if (touch.mode === 'tilt') void touch.requestTilt();
   },
   onRecenter: () => touch.calibrate(),
+  tiltSensitivity: () => SENSITIVITY[touch.sensitivity].label,
+  onCycleSensitivity: () => touch.cycleSensitivity(),
 });
 
 function goToTitle(): void {
@@ -707,7 +711,7 @@ requestAnimationFrame(frame);
 // Handy for tuning from the browser console: window.catcart.KART.maxSpeed = 30
 Object.assign(window, {
   catcart: {
-    player, rivals, racers, scene, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
+    player, rivals, racers, scene, renderer, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
     get track() {
       return track;
     },

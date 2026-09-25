@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeStatic } from '../world/mergeStatic';
 import type { KartPhysics } from './kartPhysics';
 
 export interface CatStyle {
@@ -225,6 +226,17 @@ export class CatKart {
     this.aura.position.y = 1.1;
     this.aura.visible = false;
     this.root.add(this.aura);
+
+    // Fewer draw calls: merge the parts that never move relative to their parent,
+    // keeping animated pieces (cat, head, tail, flames, wheels, overlays) separate.
+    for (const o of [this.cat, this.headGroup, this.tail, this.shieldBox, this.aura, ...this.flames]) o.userData.dynamic = true;
+    mergeStatic(this.body);
+    this.cat.userData.dynamic = false;
+    mergeStatic(this.cat);
+    this.headGroup.userData.dynamic = false;
+    mergeStatic(this.headGroup);
+    this.tail.userData.dynamic = false;
+    mergeStatic(this.tail);
   }
 
   /** Frees GPU resources when this model is swapped out. */

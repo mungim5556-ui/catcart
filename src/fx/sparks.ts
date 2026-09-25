@@ -4,52 +4,72 @@ import * as THREE from 'three';
 export const DRIFT_COLORS = [0xfff4e0, 0x4fc3ff, 0xffa53d, 0xd46bff];
 
 interface Particle {
-  mesh: THREE.Mesh;
+  pos: THREE.Vector3;
   vel: THREE.Vector3;
+  rot: THREE.Euler;
+  size: number;
   life: number;
   maxLife: number;
 }
 
-/** Tiny pooled particle system for drift sparks, landing dust and boost bursts. */
+/**
+ * Pooled particles for drift sparks, dust, hits and confetti, drawn as one
+ * instanced mesh (a single draw call however many are alive). Particles
+ * shrink away at the end of their life instead of fading.
+ */
 export class Sparks {
   readonly group = new THREE.Group();
+  private mesh: THREE.InstancedMesh;
   private pool: Particle[] = [];
   private next = 0;
+  private m = new THREE.Matrix4();
+  private q = new THREE.Quaternion();
+  private s = new THREE.Vector3();
+  private color = new THREE.Color();
 
   constructor(count = 160) {
-    const geo = new THREE.TetrahedronGeometry(0.14);
+    this.mesh = new THREE.InstancedMesh(new THREE.TetrahedronGeometry(0.14), new THREE.MeshBasicMaterial({ color: 0xffffff }), count);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.count = 0;
     for (let i = 0; i < count; i++) {
-      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
-      mesh.visible = false;
-      this.group.add(mesh);
-      this.pool.push({ mesh, vel: new THREE.Vector3(), life: 0, maxLife: 1 });
+      this.pool.push({ pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Euler(), size: 1, life: 0, maxLife: 1 });
+      this.mesh.setColorAt(i, this.color.set(0xffffff));
     }
+    this.group.add(this.mesh);
   }
 
   emit(at: THREE.Vector3, color: number, spread = 3, up = 3, life = 0.4, size = 1): void {
-    const p = this.pool[this.next];
+    const i = this.next;
+    const p = this.pool[i];
     this.next = (this.next + 1) % this.pool.length;
-    p.mesh.position.copy(at);
-    p.mesh.scale.setScalar(size);
-    (p.mesh.material as THREE.MeshBasicMaterial).color.setHex(color);
+    p.pos.copy(at);
+    p.size = size;
     p.vel.set((Math.random() - 0.5) * spread, Math.random() * up, (Math.random() - 0.5) * spread);
+    p.rot.set(Math.random() * 6, Math.random() * 6, 0);
     p.life = p.maxLife = life * (0.7 + Math.random() * 0.6);
-    p.mesh.visible = true;
+    this.mesh.setColorAt(i, this.color.set(color));
+    this.mesh.instanceColor!.needsUpdate = true;
   }
 
   update(dt: number): void {
-    for (const p of this.pool) {
-      if (p.life <= 0) continue;
-      p.life -= dt;
-      if (p.life <= 0) {
-        p.mesh.visible = false;
-        continue;
+    let visible = 0;
+    for (let i = 0; i < this.pool.length; i++) {
+      const p = this.pool[i];
+      if (p.life > 0) {
+        p.life -= dt;
+        p.vel.y -= 12 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        p.rot.x += dt * 10;
+        p.rot.y += dt * 7;
       }
-      p.vel.y -= 12 * dt;
-      p.mesh.position.addScaledVector(p.vel, dt);
-      p.mesh.rotation.x += dt * 10;
-      p.mesh.rotation.y += dt * 7;
-      (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.life / p.maxLife;
+      // Dead particles collapse to zero size (cheaper than compacting the buffer).
+      const k = p.life > 0 ? p.size * Math.min(1, (p.life / p.maxLife) * 1.6) : 0;
+      if (k > 0) visible = i + 1;
+      this.m.compose(p.pos, this.q.setFromEuler(p.rot), this.s.setScalar(k));
+      this.mesh.setMatrixAt(i, this.m);
     }
+    this.mesh.count = visible;
+    this.mesh.instanceMatrix.needsUpdate = true;
   }
 }

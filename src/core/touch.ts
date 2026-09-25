@@ -10,8 +10,14 @@
 export type SteerMode = 'tilt' | 'buttons';
 
 const PREFS_KEY = 'catcart.touch.v1';
-/** Degrees of wheel rotation for full steering lock. */
-const FULL_LOCK = 28;
+/** Tilt sensitivity levels: degrees of wheel rotation for full steering lock. */
+export const SENSITIVITY = [
+  { label: '매우 약', lock: 44 },
+  { label: '약', lock: 35 },
+  { label: '보통', lock: 28 },
+  { label: '강', lock: 22 },
+  { label: '매우 강', lock: 17 },
+];
 const DEADZONE = 2.5;
 
 type Btn = 'left' | 'right' | 'brake' | 'drift' | 'item' | 'pause' | 'rocket';
@@ -25,6 +31,8 @@ function isTouchDevice(): boolean {
 export class TouchControls {
   readonly active = isTouchDevice();
   mode: SteerMode = 'tilt';
+  /** Index into SENSITIVITY. */
+  sensitivity = 2;
   /** Tilt sensor delivered at least one reading. */
   tiltAvailable = false;
 
@@ -38,6 +46,7 @@ export class TouchControls {
     try {
       const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
       if (p.mode === 'tilt' || p.mode === 'buttons') this.mode = p.mode;
+      if (Number.isInteger(p.sensitivity) && SENSITIVITY[p.sensitivity]) this.sensitivity = p.sensitivity;
     } catch {
       /* defaults */
     }
@@ -118,7 +127,7 @@ export class TouchControls {
     let d = this.rawTilt - this.center;
     if (Math.abs(d) < DEADZONE) return 0;
     d -= Math.sign(d) * DEADZONE;
-    return Math.max(-1, Math.min(1, d / (FULL_LOCK - DEADZONE)));
+    return Math.max(-1, Math.min(1, d / (SENSITIVITY[this.sensitivity].lock - DEADZONE)));
   }
 
   isHeld(b: Btn): boolean {
@@ -139,12 +148,22 @@ export class TouchControls {
 
   setMode(mode: SteerMode): void {
     this.mode = mode;
+    this.save();
+    this.applyMode();
+  }
+
+  /** Next sensitivity level (wraps around). */
+  cycleSensitivity(): void {
+    this.sensitivity = (this.sensitivity + 1) % SENSITIVITY.length;
+    this.save();
+  }
+
+  private save(): void {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ mode }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ mode: this.mode, sensitivity: this.sensitivity }));
     } catch {
       /* ignore */
     }
-    this.applyMode();
   }
 
   private applyMode(): void {

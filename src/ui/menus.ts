@@ -40,6 +40,9 @@ export interface MenuHandlers {
   touchMode(): 'tilt' | 'buttons' | null;
   onToggleTouchMode(): void;
   onRecenter(): void;
+  /** Tilt sensitivity label (e.g. '보통'). */
+  tiltSensitivity(): string;
+  onCycleSensitivity(): void;
 }
 
 const PREFS_KEY = 'catcart.prefs.v1';
@@ -214,6 +217,9 @@ export class Menus {
       case 'touchmode':
         this.h.onToggleTouchMode();
         return this.render();
+      case 'sensitivity':
+        this.h.onCycleSensitivity();
+        return this.render();
       case 'recenter':
         this.h.onRecenter();
         return this.act('resume');
@@ -223,7 +229,9 @@ export class Menus {
   private touchButton(): { label: string; action: string }[] {
     const m = this.h.touchMode();
     if (!m) return [];
-    return [{ label: m === 'tilt' ? '📱 조향: 기울기' : '📱 조향: ◀ ▶ 버튼', action: 'touchmode' }];
+    const buttons = [{ label: m === 'tilt' ? '📱 조향: 기울기' : '📱 조향: ◀ ▶ 버튼', action: 'touchmode' }];
+    if (m === 'tilt') buttons.push({ label: `🎚️ 기울기 민감도: ${this.h.tiltSensitivity()}`, action: 'sensitivity' });
+    return buttons;
   }
 
   private soundButton(): { label: string; action: string } {

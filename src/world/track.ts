@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { KartWorld } from '../kart/kartPhysics';
 import type { Theme, TrackDef } from './trackDefs';
 import { buildBackdrop, buildLandmark, buildLogTunnel, buildProp } from './scenery';
+import { mergeStatic } from './mergeStatic';
 
 export const ROAD_WIDTH = 16;
 export const SAMPLES = 400;
@@ -83,6 +84,8 @@ export class Track implements KartWorld {
     this.buildLining();
     this.buildScenery();
     if (this.theme.backdrop) this.group.add(buildBackdrop(this.theme.backdrop, rng(def.seed + 7)));
+    // The whole track is static: collapse it into a few big meshes (one per material).
+    mergeStatic(this.group);
     this.buildFence();
   }
 

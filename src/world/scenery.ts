@@ -65,6 +65,10 @@ const FACADES = [0x3d3a52, 0x4a3b45, 0x2f4450, 0x514336].map((wall) => {
   return tex;
 });
 
+const FACADE_MATS = FACADES.map(
+  (tex) => new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, roughness: 0.9 }),
+);
+
 const NEON_TEXT = ['🐟 참치', '냥냥 BAR', '고등어 24시', '🐾 츄르', 'CAT CAFE', '🥛 우유'];
 const NEON_COLORS = ['#ff4fa3', '#4fe3ff', '#ffe14f', '#9dff6b', '#c98bff'];
 
@@ -218,11 +222,12 @@ export function buildProp(kind: PropKind, r: () => number): { obj: THREE.Object3
       const w = 8 + r() * 5;
       const d = 8 + r() * 3;
       const h = 10 + r() * 16;
-      const tex = FACADES[Math.floor(r() * FACADES.length)].clone();
-      tex.repeat.set(Math.round(w / 5), Math.round(h / 8));
-      tex.needsUpdate = true;
-      const facade = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.85, roughness: 0.9 });
-      g.add(m(new THREE.BoxGeometry(w, h, d), facade, 0, h / 2, 0));
+      // Shared facade material; window tiling is baked into the UVs so buildings can be merged.
+      const facade = FACADE_MATS[Math.floor(r() * FACADE_MATS.length)];
+      const box = new THREE.BoxGeometry(w, h, d);
+      const uv = box.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.round(w / 5), uv.getY(i) * Math.round(h / 8));
+      g.add(m(box, facade, 0, h / 2, 0));
       g.add(m(new THREE.BoxGeometry(w + 0.6, 0.6, d + 0.6), M.lampPole, 0, h + 0.3, 0)); // roof ledge
       if (r() < 0.6) g.add(m(new THREE.BoxGeometry(2, 1.4, 2), M.bin, (r() - 0.5) * w * 0.5, h + 1.3, (r() - 0.5) * d * 0.5)); // AC unit
       return { obj: g, radius: Math.min(w, d) / 2 + 0.5 };
