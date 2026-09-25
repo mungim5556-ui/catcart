@@ -31,8 +31,11 @@ export class GameAudio {
 
   // Continuous voices
   private engineOsc: OscillatorNode[] = [];
+  private engineLfo!: OscillatorNode;
   private engineGain!: GainNode;
   private engineFilter!: BiquadFilterNode;
+  /** Smoothed engine revs (0..~1). */
+  private rpm = 0;
   private skidGain!: GainNode;
   private skidFilter!: BiquadFilterNode;
   private rumbleGain!: GainNode;
@@ -93,24 +96,38 @@ export class GameAudio {
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
 
-    // Engine: two detuned buzzy oscillators through a lowpass.
+    // Engine: a little single-cylinder kart motor. One rounded voice plus a sub-octave for
+    // body (in tune with each other: detuned pairs beat and sound like a warbling siren), and
+    // a putt-putt flutter from an LFO locked to the firing rate.
     this.engineFilter = ctx.createBiquadFilter();
     this.engineFilter.type = 'lowpass';
     this.engineFilter.frequency.value = 600;
+    this.engineFilter.Q.value = 0.7;
+    const flutter = ctx.createGain();
+    flutter.gain.value = 0.75;
     this.engineGain = ctx.createGain();
     this.engineGain.gain.value = 0;
-    this.engineFilter.connect(this.engineGain).connect(this.sfx);
-    for (const [type, detune] of [['sawtooth', 0], ['square', 7]] as const) {
+    this.engineFilter.connect(flutter).connect(this.engineGain).connect(this.sfx);
+    // Harmonics fall off quickly: warm "brr" instead of a raw sawtooth buzz.
+    const real = new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]);
+    const imag = new Float32Array([0, 1, 0.55, 0.4, 0.22, 0.15, 0.08, 0.05]);
+    const wave = ctx.createPeriodicWave(real, imag);
+    for (const [ratio, vol] of [[1, 0.6], [0.5, 0.45]] as const) {
       const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.value = 60;
-      o.detune.value = detune;
+      o.setPeriodicWave(wave);
+      o.frequency.value = 50 * ratio;
       const g = ctx.createGain();
-      g.gain.value = type === 'square' ? 0.35 : 0.6;
+      g.gain.value = vol;
       o.connect(g).connect(this.engineFilter);
       o.start();
       this.engineOsc.push(o);
     }
+    this.engineLfo = ctx.createOscillator();
+    this.engineLfo.frequency.value = 12;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.25;
+    this.engineLfo.connect(depth).connect(flutter.gain);
+    this.engineLfo.start();
 
     // Tyre squeal (drift) and grass rumble: looped noise through filters.
     const loop = (type: BiquadFilterType, freq: number, q: number): [GainNode, BiquadFilterNode] => {
@@ -139,10 +156,20 @@ export class GameAudio {
     if (!ctx) return;
     const t = ctx.currentTime;
     const s = Math.min(1.4, Math.abs(speed) / 26);
-    const base = 55 + s * 110 + (boosting ? 30 : 0);
-    for (const o of this.engineOsc) o.frequency.setTargetAtTime(base, t, 0.06);
-    this.engineFilter.frequency.setTargetAtTime(400 + s * 900 + throttle * 300, t, 0.08);
-    this.engineGain.gain.setTargetAtTime(active ? 0.05 + throttle * 0.05 + s * 0.04 : 0, t, 0.1);
+    // Revs: idle when stopped (a touch higher when revving on the spot for a rocket start),
+    // rising with speed on an easing curve so the top end doesn't turn into a whine.
+    let target = s < 0.03 ? 0.12 + throttle * 0.3 : 0.25 + 0.6 * Math.sqrt(Math.min(1, s));
+    if (boosting) target += 0.15;
+    if (throttle < 0.1 && s > 0.03) target -= 0.08;
+    // Smoothed on our side too, so bumps and small speed changes don't make the pitch warble.
+    this.rpm += (target - this.rpm) * 0.12;
+
+    const f = 48 + this.rpm * 95;
+    this.engineOsc[0].frequency.setTargetAtTime(f, t, 0.03);
+    this.engineOsc[1].frequency.setTargetAtTime(f * 0.5, t, 0.03);
+    this.engineLfo.frequency.setTargetAtTime(f * 0.25, t, 0.03);
+    this.engineFilter.frequency.setTargetAtTime(350 + this.rpm * 700 + throttle * 250, t, 0.08);
+    this.engineGain.gain.setTargetAtTime(active ? 0.06 + throttle * 0.04 + s * 0.03 : 0, t, 0.1);
 
     this.skidGain.gain.setTargetAtTime(active && drifting ? 0.07 : 0, t, 0.05);
     this.skidFilter.frequency.setTargetAtTime(1800 + driftLevel * 450, t, 0.1);
