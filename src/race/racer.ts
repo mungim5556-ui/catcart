@@ -24,6 +24,7 @@ export class Racer implements ItemHolder {
   rocketChance = 0;
   finishTime: number | null = null;
   item: ItemKind | null = null;
+  itemUses = 0;
   roulette = 0;
   itemHold = 0;
   lastInput: KartInput = IDLE;
@@ -72,6 +73,7 @@ export class Racer implements ItemHolder {
     this.finishTime = null;
     this.lastInput = IDLE;
     this.item = null;
+    this.itemUses = 0;
     this.roulette = 0;
     this.itemHold = 0;
     this.snapRender();

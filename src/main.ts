@@ -326,6 +326,7 @@ function playerStepEffects(): void {
     if (e.boost === 'pad') hud.flash('부스트!', '#ffb300');
     else if (e.boost === 'rocket') hud.flash('로켓 스타트!', '#ff6f91');
     else if (e.boost === 'fish') hud.flash('생선 부스트!', '#4fc3ff');
+    else if (e.boost === 'catnip') hud.flash('🌿 캣닢 파워!', '#52c77a');
     else hud.flash(['', '미니 터보!', '슈퍼 터보!', '울트라 터보!'][e.boost], '#' + DRIFT_COLORS[e.boost].toString(16));
     chase.bump(0.25);
     audio.boost(e.boost);
@@ -352,6 +353,8 @@ function frameEffects(r: Racer): void {
     return;
   }
   const rear = r.model.rearWheelPoints();
+  // Catnip: green sparkles trail behind.
+  if (kart.starTime > 0) sparks.emit(kart.pos.clone().setY(kart.pos.y + 1 + Math.random()), Math.random() < 0.5 ? 0x7dff9a : 0xd9ff6b, 4, 2, 0.5, 1.4);
   // Tyre marks while drifting or spinning out.
   if ((kart.drifting || kart.spinTime > 0) && kart.grounded) {
     const pts = rear.map((p) => p.clone().setY(track.heightAt(p.x, p.z) + 0.03));
@@ -371,18 +374,33 @@ function frameEffects(r: Racer): void {
 function itemEffects(e: ItemEvent): void {
   if (e.type === 'got' && e.racer === player) audio.itemGot();
   if (e.type === 'used' && e.racer === player) {
-    if (e.item === 'yarn') audio.throwYarn();
-    else if (e.item === 'banana') audio.dropBanana();
+    if (e.item === 'yarn' || e.item === 'mouse') audio.throwYarn();
+    else if (e.item === 'banana' || e.item === 'milk') audio.dropBanana();
+    else if (e.item === 'box') {
+      audio.itemGot();
+      hud.flash('📦 상자 방패!', '#c9a06a');
+    }
+  }
+  if (e.type === 'used' && e.item === 'bath') {
+    hud.flash(e.racer === player ? '💦 목욕 시간!' : `💦 ${e.racer.name}의 목욕 시간!`, '#4fc3ff');
+    audio.dropBanana();
+  }
+  if (e.type === 'blocked') {
+    if (e.racer === player) hud.flash('📦 방어 성공!', '#c9a06a');
+    if (e.racer.physics.pos.distanceToSquared(player.physics.pos) < 60 * 60) audio.bump();
+    return;
   }
   if (e.type !== 'hit') return;
   const near = e.victim.physics.pos.distanceToSquared(player.physics.pos) < 60 * 60;
   if (near) {
     const at = e.victim.physics.pos.clone().setY(e.victim.physics.pos.y + 1.2);
-    for (let i = 0; i < 14; i++) sparks.emit(at, i % 2 ? 0xffe066 : 0xffffff, 7, 5, 0.6, 1.6);
+    const colors = e.item === 'bath' ? [0x4fc3ff, 0xbfe9ff] : e.item === 'milk' ? [0xffffff, 0xf3f0e6] : [0xffe066, 0xffffff];
+    for (let i = 0; i < 14; i++) sparks.emit(at, colors[i % 2], 7, 5, 0.6, 1.6);
   }
   if (e.victim === player) {
-    hud.flash(e.item === 'banana' ? '미끄덩!' : '냐앙!', '#ff5a6e');
-    chase.bump(0.7);
+    const ouch: Record<string, string> = { banana: '미끄덩!', milk: '우유에 미끌!', bath: '으악, 물벼락!', catnip: '냥펀치 맞았다!' };
+    hud.flash(ouch[e.item] ?? '냐앙!', '#ff5a6e');
+    chase.bump(e.item === 'milk' ? 0.3 : 0.7);
     audio.meow();
   } else if (e.by === player) {
     hud.flash(`${e.victim.name} 명중!`, '#ffb300');
@@ -418,11 +436,10 @@ function step(): void {
   const hazards = items.hazards;
 
   if (race.phase === 'racing' && gated.input.useItem) {
-    const used = items.use(player, order);
-    if (used) itemEffects(used);
+    for (const e of items.use(player, order)) itemEffects(e);
   }
   const hadRoulette = player.roulette > 0;
-  if (racing) for (const r of rivals) if (items.aiWantsToUse(r, order)) items.use(r, order);
+  if (racing) for (const r of rivals) if (items.aiWantsToUse(r, order)) for (const e of items.use(r, order)) itemEffects(e);
 
   // After the finish line the player's kart drives itself.
   player.lastInput =

@@ -401,3 +401,19 @@ body.rocket-go .t-rocket span { filter: none; opacity: 1; }
 body.rocket-go .t-rocket.down { background: rgba(255, 111, 145, .8) !important; }
 @keyframes rocketPulse { to { transform: scale(1.1); } }
 body.counting #speedo { display: none; }
+
+#item-count {
+  position: absolute; right: -8px; bottom: -8px; background: #ff6f91; color: #fff; font-size: 15px;
+  border-radius: 10px; padding: 0 6px; border: 2px solid #fff; font-style: normal;
+}
+#item-count:empty { display: none; }
+.t-item span { white-space: nowrap; }
+
+/* Back button on the select screens (phones have no Esc key). */
+.back-btn {
+  position: absolute; left: calc(14px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top));
+  pointer-events: auto; border: 0; border-radius: 16px; padding: 10px 18px; font-size: 17px; font-weight: 800;
+  background: rgba(255,255,255,.92); color: #3a2e4f; box-shadow: 0 4px 0 #c9b8e8; z-index: 1;
+}
+.back-btn:hover, .back-btn:active { background: #ff6f91; color: #fff; box-shadow: 0 4px 0 #c94f6f; }
+@media (max-height: 520px) { .back-btn { padding: 6px 14px; font-size: 14px; top: 8px; } }

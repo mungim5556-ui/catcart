@@ -83,6 +83,10 @@ export class CatKart {
   private tail: THREE.Group;
   private flames: THREE.Mesh[] = [];
   private headGroup = new THREE.Group();
+  /** 📦 Box shield: see-through cardboard box around the kart. */
+  private shieldBox: THREE.Group;
+  /** 🌿 Catnip: pulsing green glow. */
+  private aura: THREE.Mesh;
 
   private visualYawOffset = 0;
   private roll = 0;
@@ -202,6 +206,25 @@ export class CatKart {
       this.wheels.push(wheel);
       if (front) this.frontPivots.push(pivot);
     }
+
+    // Item effect overlays (hidden until used).
+    this.shieldBox = new THREE.Group();
+    const boxGeo = new THREE.BoxGeometry(2.7, 2.6, 3.6);
+    const faces = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0xc9a06a, transparent: true, opacity: 0.18, depthWrite: false }));
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0x8a6a3f }));
+    const tape = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 3.62), new THREE.MeshBasicMaterial({ color: 0xe8d9b0 }));
+    tape.position.y = 1.3;
+    this.shieldBox.add(faces, edges, tape);
+    this.shieldBox.position.y = 1.2;
+    this.shieldBox.visible = false;
+    this.root.add(this.shieldBox);
+    this.aura = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 16, 10),
+      new THREE.MeshBasicMaterial({ color: 0x7dff9a, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    this.aura.position.y = 1.1;
+    this.aura.visible = false;
+    this.root.add(this.aura);
   }
 
   /** Frees GPU resources when this model is swapped out. */
@@ -226,7 +249,18 @@ export class CatKart {
     // Item hit: one full spin, easing out.
     const sp = k.spinProgress;
     const spin = sp > 0 ? (1 - (1 - sp) ** 2) * Math.PI * 2 : 0;
-    this.root.rotation.y = yaw + this.visualYawOffset + spin;
+    // Milk: a quick fishtail wobble that dies down.
+    const wobble = k.slipTime > 0 ? Math.sin(this.time * 28) * 0.35 * (k.slipTime / 0.9) : 0;
+    this.root.rotation.y = yaw + this.visualYawOffset + spin + wobble;
+
+    // Shield blinks in its last two seconds; catnip glow pulses.
+    this.shieldBox.visible = k.shieldTime > 0 && (k.shieldTime > 2 || Math.floor(this.time * 8) % 2 === 0);
+    this.aura.visible = k.starTime > 0;
+    if (this.aura.visible) {
+      const p = 1 + Math.sin(this.time * 12) * 0.08;
+      this.aura.scale.set(1.5 * p, 1.1 * p, 1.9 * p);
+      (this.aura.material as THREE.MeshBasicMaterial).color.setHSL((this.time * 0.8) % 1 * 0.25 + 0.25, 0.9, 0.55);
+    }
     // Blink while immune after a hit.
     this.root.visible = !(k.invulnTime > 0 && k.spinTime <= 0 && Math.floor(this.time * 20) % 2 === 0);
 

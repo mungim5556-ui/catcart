@@ -200,7 +200,7 @@ export class GameAudio {
     this.tone(go ? 880 : 440, go ? 0.6 : 0.25, { type: 'square', vol: 0.18 });
   }
 
-  boost(kind: 'pad' | 'rocket' | 'fish' | number): void {
+  boost(kind: 'pad' | 'rocket' | 'fish' | 'catnip' | number): void {
     this.burst(0.6, { freq: 400, to: 3000, q: 2, vol: 0.35 });
     const top = typeof kind === 'number' ? 600 + kind * 200 : 900;
     this.tone(200, 0.45, { type: 'sawtooth', vol: 0.08, to: top });

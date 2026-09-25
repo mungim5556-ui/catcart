@@ -191,6 +191,9 @@ export class Menus {
         return;
       case 'prev':
         return this.setCat(this.cat - 1);
+      case 'back':
+        // Track → cat select → title (same as Esc).
+        return this.act(this.screen === 'track' ? 'select' : 'title');
       case 'nextCat':
         return this.setCat(this.cat + 1);
       case 'start':
@@ -310,6 +313,7 @@ export class Menus {
           (d, i) => `<button data-action="diff:${i}" class="${i === this.diff ? 'on' : ''}">${d.label}<small>${d.cc}</small></button>`,
         ).join('');
         this.root.innerHTML = `
+          <button data-action="back" class="back-btn">← 뒤로</button>
           <h2 class="select-title">고양이 선택</h2>
           <div class="select-bar">
             <div class="cat-pick">
@@ -336,6 +340,7 @@ export class Menus {
         ).join('');
         const sel = TRACKS[this.track];
         this.root.innerHTML = `
+          <button data-action="back" class="back-btn">← 뒤로</button>
           <h2 class="select-title">트랙 선택</h2>
           <div class="track-bar">
             <div class="track-cards">${cards}</div>

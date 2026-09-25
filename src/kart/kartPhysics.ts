@@ -41,17 +41,22 @@ export const KART = {
   padBoost: 1.2,
   rocketBoost: 1.3,
   fishBoost: 1.6,
+  slipDuration: 0.9,
+  shieldDuration: 10,
+  catnipDuration: 6,
+  catnipSpeed: 1.15,
   /** Spin-out after being hit by an item. */
   spinDuration: 1.1,
   hitInvuln: 0.8,
 };
 
 /** Drift mini-turbo level (1-3), a boost pad, or a rocket start. */
-export type BoostSource = number | 'pad' | 'rocket' | 'fish';
+export type BoostSource = number | 'pad' | 'rocket' | 'fish' | 'catnip';
 
 export interface StepEvents {
   landed: number; // impact speed when touching down this step
   hit: boolean; // bumped into a wall/obstacle
+  blocked?: boolean; // a box shield absorbed an item hit
   boost: BoostSource | null; // a new boost started
   hop: boolean;
 }
@@ -72,6 +77,12 @@ export class KartPhysics {
   spinTime = 0;
   /** Time left immune to item hits. */
   invulnTime = 0;
+  /** 📦 Box shield: absorbs the next hit while > 0. */
+  shieldTime = 0;
+  /** 🌿 Catnip: invincible and faster while > 0. */
+  starTime = 0;
+  /** 🥛 Slipping on milk: wobbles, no spin-out. */
+  slipTime = 0;
   /** Per-kart speed scale (AI skill, catch-up); 1 = normal. */
   speedMul = 1;
 
@@ -108,12 +119,21 @@ export class KartPhysics {
     this.boostTime = 0;
     this.spinTime = 0;
     this.invulnTime = 0;
+    this.shieldTime = 0;
+    this.starTime = 0;
+    this.slipTime = 0;
     this.boostBetweenSteps = null;
   }
 
-  /** Item hit: spin out and lose most speed. Returns false if immune. */
+  /** Item hit: spin out and lose most speed. Returns false if immune or shielded. */
   hit(): boolean {
-    if (this.invulnTime > 0) return false;
+    if (this.invulnTime > 0 || this.starTime > 0) return false;
+    if (this.shieldTime > 0) {
+      this.shieldTime = 0;
+      this.invulnTime = 0.5;
+      this.events.blocked = true;
+      return false;
+    }
     this.spinTime = KART.spinDuration;
     this.invulnTime = KART.spinDuration + KART.hitInvuln;
     this.vel.x *= 0.25;
@@ -121,6 +141,26 @@ export class KartPhysics {
     this.drifting = false;
     this.boostTime = 0;
     return true;
+  }
+
+  /** Milk puddle: lose speed and wobble, but keep control. */
+  slip(): boolean {
+    if (this.invulnTime > 0 || this.starTime > 0 || this.slipTime > 0) return false;
+    this.slipTime = KART.slipDuration;
+    this.vel.x *= 0.6;
+    this.vel.z *= 0.6;
+    this.drifting = false;
+    return true;
+  }
+
+  shield(): void {
+    this.shieldTime = KART.shieldDuration;
+  }
+
+  catnip(): void {
+    this.starTime = KART.catnipDuration;
+    this.spinTime = 0;
+    this.addBoost(0.8, 'catnip');
   }
 
   fishBoost(): void {
@@ -147,6 +187,9 @@ export class KartPhysics {
   private simulate(dt: number, input: KartInput, world: KartWorld): void {
 
     this.invulnTime = Math.max(0, this.invulnTime - dt);
+    this.shieldTime = Math.max(0, this.shieldTime - dt);
+    this.starTime = Math.max(0, this.starTime - dt);
+    this.slipTime = Math.max(0, this.slipTime - dt);
     if (this.spinTime > 0) {
       // Spinning out: no control until it ends.
       this.spinTime = Math.max(0, this.spinTime - dt);
@@ -170,8 +213,8 @@ export class KartPhysics {
     const boosting = this.boostTime > 0;
     this.boostTime = Math.max(0, this.boostTime - dt);
 
-    let top = (boosting ? KART.boostSpeed : KART.maxSpeed) * this.speedMul;
-    if (this.offroad && !boosting) top *= KART.offroadFactor;
+    let top = (boosting ? KART.boostSpeed : KART.maxSpeed) * this.speedMul * (this.starTime > 0 ? KART.catnipSpeed : 1);
+    if (this.offroad && !boosting && this.starTime <= 0) top *= KART.offroadFactor;
 
     // --- Longitudinal ---
     if (this.grounded) {
