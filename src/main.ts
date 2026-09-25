@@ -381,6 +381,9 @@ window.addEventListener('resize', () => {
 });
 
 // --- Effects ---
+const TRICK_NAMES = ['냥-스핀!', '고양이 공중제비!', '야옹 트릭!', '멋져냥!', '꼬리 회오리!'];
+let trickHints = 0;
+
 function playerStepEffects(): void {
   const kart = player.physics;
   const e = kart.events;
@@ -389,6 +392,7 @@ function playerStepEffects(): void {
     else if (e.boost === 'rocket') hud.flash('로켓 스타트!', '#ff6f91');
     else if (e.boost === 'fish') hud.flash('생선 부스트!', '#4fc3ff');
     else if (e.boost === 'catnip') hud.flash('🌿 캣닢 파워!', '#52c77a');
+    else if (e.boost === 'trick') hud.flash(TRICK_NAMES[Math.floor(Math.random() * TRICK_NAMES.length)], '#ffd84d');
     else hud.flash(['', '미니 터보!', '슈퍼 터보!', '울트라 터보!'][e.boost], '#' + DRIFT_COLORS[e.boost].toString(16));
     chase.bump(0.25);
     audio.boost(e.boost);
@@ -398,6 +402,15 @@ function playerStepEffects(): void {
     audio.bump();
   }
   if (e.hop) audio.hop();
+  if (e.trick) {
+    audio.trick();
+    for (let i = 0; i < 16; i++) sparks.emit(kart.pos.clone().setY(kart.pos.y + 1), i % 2 ? 0xffd84d : 0xffffff, 6, 3, 0.5, 1.4);
+  }
+  // Teach the trick on the first few ramp jumps.
+  if (e.launch && trickHints < 3) {
+    trickHints++;
+    hud.flash(touch.active ? '✨ 지금 드리프트 버튼 → 트릭!' : '✨ 지금 드리프트(Space) → 트릭!', '#ffd84d');
+  }
   if (kart.driftLevel > lastDriftLevel) audio.driftLevel(kart.driftLevel);
   lastDriftLevel = kart.driftLevel;
   if (e.landed > 6) {

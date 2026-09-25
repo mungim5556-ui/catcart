@@ -45,13 +45,18 @@ export const KART = {
   shieldDuration: 10,
   catnipDuration: 6,
   catnipSpeed: 1.15,
+  /** Upward speed when leaving a ramp (plus a bit per unit of forward speed). */
+  rampLaunch: 7.5,
+  rampLaunchPerSpeed: 0.13,
+  trickDuration: 0.45,
+  trickBoost: 1.0,
   /** Spin-out after being hit by an item. */
   spinDuration: 1.1,
   hitInvuln: 0.8,
 };
 
 /** Drift mini-turbo level (1-3), a boost pad, or a rocket start. */
-export type BoostSource = number | 'pad' | 'rocket' | 'fish' | 'catnip';
+export type BoostSource = number | 'pad' | 'rocket' | 'fish' | 'catnip' | 'trick';
 
 export interface StepEvents {
   landed: number; // impact speed when touching down this step
@@ -59,6 +64,8 @@ export interface StepEvents {
   blocked?: boolean; // a box shield absorbed an item hit
   boost: BoostSource | null; // a new boost started
   hop: boolean;
+  launch?: boolean; // flew off a ramp: a trick is possible
+  trick?: boolean; // started a trick in the air
 }
 
 export class KartPhysics {
@@ -83,6 +90,11 @@ export class KartPhysics {
   starTime = 0;
   /** 🥛 Slipping on milk: wobbles, no spin-out. */
   slipTime = 0;
+  /** Airborne off a ramp and no trick done yet. */
+  canTrick = false;
+  tricked = false;
+  /** Time left in the trick spin animation. */
+  trickTime = 0;
   /** Per-kart speed scale (AI skill, catch-up); 1 = normal. */
   speedMul = 1;
 
@@ -122,6 +134,8 @@ export class KartPhysics {
     this.shieldTime = 0;
     this.starTime = 0;
     this.slipTime = 0;
+    this.canTrick = this.tricked = false;
+    this.trickTime = 0;
     this.boostBetweenSteps = null;
   }
 
@@ -294,6 +308,14 @@ export class KartPhysics {
     }
     this.vel.y = vy;
 
+    // --- Jump tricks: drift button in the air after a ramp ---
+    this.trickTime = Math.max(0, this.trickTime - dt);
+    if (!this.grounded && this.canTrick && !this.tricked && input.driftPressed && this.spinTime <= 0) {
+      this.tricked = true;
+      this.trickTime = KART.trickDuration;
+      this.events.trick = true;
+    }
+
     // --- Move + vertical ---
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
@@ -305,6 +327,13 @@ export class KartPhysics {
         this.pos.y = ground;
       } else {
         this.grounded = false;
+        // Leaving the top of a ramp: fling the kart up so there's time for a trick.
+        if (this.pos.y > 0.3) {
+          this.vel.y = Math.max(this.vel.y, KART.rampLaunch + KART.rampLaunchPerSpeed * Math.abs(fs));
+          this.canTrick = true;
+          this.tricked = false;
+          this.events.launch = true;
+        }
       }
     }
     if (!this.grounded) {
@@ -315,6 +344,8 @@ export class KartPhysics {
         this.pos.y = ground;
         this.vel.y = 0;
         this.grounded = true;
+        if (this.tricked && this.spinTime <= 0) this.addBoost(KART.trickBoost, 'trick');
+        this.canTrick = this.tricked = false;
       }
     }
 

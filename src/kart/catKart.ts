@@ -282,6 +282,19 @@ export class CatKart {
     this.pitch += (targetPitch - this.pitch) * damp(6);
     this.body.rotation.set(this.pitch, 0, this.roll);
 
+    // Trick: the whole kart does a barrel roll about its middle (not its wheels).
+    const tp = k.trickTime > 0 ? 1 - k.trickTime / 0.45 : 0;
+    const trickRoll = tp > 0 ? (1 - (1 - tp) ** 3) * Math.PI * 2 : 0;
+    this.root.rotation.z = trickRoll;
+    if (trickRoll) {
+      const c = 0.9; // roll centre height
+      const lx = c * Math.sin(trickRoll);
+      const yaw = this.root.rotation.y;
+      this.root.position.x += lx * Math.cos(yaw);
+      this.root.position.z -= lx * Math.sin(yaw);
+      this.root.position.y += c * (1 - Math.cos(trickRoll));
+    }
+
     if (k.events.landed > 3) this.squash = Math.min(0.3, k.events.landed * 0.025);
     this.squash *= Math.exp(-8 * dt);
     const rumble = k.offroad && k.grounded ? Math.sin(this.time * 60) * 0.03 * Math.min(1, Math.abs(fs) / 5) : 0;

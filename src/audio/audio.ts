@@ -200,7 +200,7 @@ export class GameAudio {
     this.tone(go ? 880 : 440, go ? 0.6 : 0.25, { type: 'square', vol: 0.18 });
   }
 
-  boost(kind: 'pad' | 'rocket' | 'fish' | 'catnip' | number): void {
+  boost(kind: 'pad' | 'rocket' | 'fish' | 'catnip' | 'trick' | number): void {
     this.burst(0.6, { freq: 400, to: 3000, q: 2, vol: 0.35 });
     const top = typeof kind === 'number' ? 600 + kind * 200 : 900;
     this.tone(200, 0.45, { type: 'sawtooth', vol: 0.08, to: top });
@@ -208,6 +208,11 @@ export class GameAudio {
 
   driftLevel(level: number): void {
     this.tone(midi(76 + level * 4), 0.15, { type: 'triangle', vol: 0.15 });
+  }
+
+  trick(): void {
+    this.arp([72, 79, 84, 91], 0.045, 0.12, 'triangle', 0.13);
+    this.burst(0.35, { freq: 600, to: 2500, q: 3, vol: 0.18 });
   }
 
   hop(): void {

@@ -301,6 +301,7 @@ export class Menus {
               <tr><td><kbd>A</kbd><kbd>D</kbd> <kbd>←</kbd><kbd>→</kbd></td><td>조향</td></tr>
               <tr><td><kbd>Space</kbd> <kbd>Shift</kbd></td><td>누른 채로 꺾으면 드리프트 → 떼면 터보<br/><small>불꽃 <b class="blue">파랑</b> → <b class="orange">주황</b> → <b class="purple">보라</b></small></td></tr>
               <tr><td><kbd>E</kbd> <kbd>Ctrl</kbd></td><td>아이템 사용 🐟 🧶 🍌</td></tr>
+              <tr><td>점프대 + <kbd>Space</kbd></td><td>공중에서 드리프트 → ✨ 트릭, 착지하면 부스트!</td></tr>
               <tr><td><kbd>R</kbd></td><td>도로로 복귀</td></tr>
               <tr><td><kbd>Esc</kbd> <kbd>P</kbd></td><td>일시정지</td></tr>
             </table>

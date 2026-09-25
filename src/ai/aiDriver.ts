@@ -24,6 +24,7 @@ export class AiDriver {
   private stuck = 0;
   private wander = Math.random() * 10;
   private willDrift = true;
+  private willTrick: boolean | null = null;
 
   constructor(
     public track: Track,
@@ -97,6 +98,12 @@ export class AiDriver {
       if (!this.prevDrift) this.willDrift = Math.random() < this.profile.driftSkill;
       drift = this.willDrift;
     }
+    // Off a ramp: decide once per jump whether to pull a trick (better drivers trick more).
+    if (!k.grounded && k.canTrick && !k.tricked) {
+      if (this.willTrick === null) this.willTrick = Math.random() < 0.3 + this.profile.driftSkill * 0.6;
+      if (this.willTrick && k.vel.y < 5) drift = true;
+    } else if (k.grounded) this.willTrick = null;
+
     const driftPressed = drift && !this.prevDrift;
     this.prevDrift = drift;
 
