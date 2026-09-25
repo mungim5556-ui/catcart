@@ -118,7 +118,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.02, 0.18, 0.48, 0.88],
     ramps: [[0.1, 1.4], [0.53, 1.8]],
     boxRows: [0.06, 0.31, 0.58, 0.8],
-    hazards: { butterfly: [0.25, 0.41, 0.84], flower: [0.35, 0.65, 0.73] },
+    hazards: { butterfly: [0.25, 0.84], flower: [0.35, 0.65] },
     seed: 42,
     theme: {
       offroad: { label: '🌱 잔디 — 감속!', badge: 'rgba(60,120,40,.8)', dust: 0x8a9a52 },
@@ -148,7 +148,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.12, 0.47, 0.68, 0.9],
     ramps: [[0.52, 1.8], [0.93, 1.4]],
     boxRows: [0.05, 0.3, 0.6, 0.83],
-    hazards: { crab: [0.21, 0.4, 0.75], beachball: [0.645, 0.35, 0.25] },
+    hazards: { crab: [0.21, 0.75], beachball: [0.35, 0.645] },
     seed: 7,
     theme: {
       offroad: { label: '🏖️ 모래밭 — 감속!', badge: 'rgba(176,130,60,.85)', dust: 0xe8cf8a },
@@ -179,7 +179,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.02, 0.26, 0.79, 0.95],
     ramps: [[0.33, 1.6], [0.88, 1.4]],
     boxRows: [0.1, 0.4, 0.62, 0.84],
-    hazards: { snowball: [0.46, 0.7, 0.57], penguin: [0.13, 0.18, 0.51] },
+    hazards: { snowball: [0.46, 0.7], penguin: [0.13, 0.51] },
     seed: 99,
     theme: {
       offroad: { label: '❄️ 눈밭 — 감속!', badge: 'rgba(70,110,160,.8)', dust: 0xffffff },
@@ -211,7 +211,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.03, 0.15, 0.5, 0.75],
     ramps: [[0.56, 1.6], [0.95, 1.4]],
     boxRows: [0.1, 0.38, 0.66, 0.84],
-    hazards: { vacuum: [0.22, 0.61, 0.89], steam: [0.27, 0.45, 0.33] },
+    hazards: { vacuum: [0.22, 0.61], steam: [0.45, 0.89] },
     seed: 21,
     theme: {
       offroad: { label: '🚧 인도 — 감속!', badge: 'rgba(60,50,90,.85)', dust: 0x8a8698 },
@@ -245,7 +245,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.02, 0.545, 0.652, 0.915],
     ramps: [[0.945, 1.4]],
     boxRows: [0.12, 0.35, 0.6, 0.8],
-    hazards: { hedgehog: [0.2, 0.45, 0.76], mushroom: [0.25, 0.85, 0.5] },
+    hazards: { hedgehog: [0.2, 0.76], mushroom: [0.5, 0.85] },
     tunnels: [[0.69, 13]],
     seed: 5,
     theme: {
@@ -278,7 +278,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.03, 0.17, 0.41, 0.89],
     ramps: [[0.1, 1.8], [0.44, 1.6]],
     boxRows: [0.07, 0.3, 0.6, 0.8],
-    hazards: { dustdevil: [0.21, 0.36, 0.65], cactus: [0.27, 0.515, 0.75] },
+    hazards: { dustdevil: [0.21, 0.36], cactus: [0.515, 0.75] },
     landmarks: [
       { kind: 'pyramid', x: 15, z: -5, size: 56 },
       { kind: 'pyramid', x: -50, z: 45, size: 36 },

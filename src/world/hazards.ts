@@ -446,18 +446,18 @@ export class TrackHazards {
       case 'flower':
       case 'steam':
       case 'mushroom':
-        // A staggered row across the road; they burst open one after another.
-        for (const [k, [lat, along]] of ([[-5, -9], [0, 0], [5, 9]] as const).entries()) {
-          this.popper(kind, fr, lat * (n % 2 ? -1 : 1), along, (k * POP_PERIOD) / 3 + rand() * 0.2);
+        // A staggered pair across the road; they burst open in turn.
+        for (const [k, [lat, along]] of ([[-3.8, -6], [3.8, 6]] as const).entries()) {
+          this.popper(kind, fr, lat * (n % 2 ? -1 : 1), along, (k * POP_PERIOD) / 2 + rand() * 0.2);
         }
         return;
       case 'butterfly':
-        for (let k = 0; k < 2; k++) this.flier('butterfly', fr, rand() * 10);
+        this.flier('butterfly', fr, rand() * 10);
         return;
       case 'dustdevil':
         return this.flier('dustdevil', fr, rand() * 10);
       case 'beachball':
-        for (const lat of [-3.5, 3.5]) this.bouncer(fr, lat, rand() * 3);
+        this.bouncer(fr, (n % 2 ? -1 : 1) * 2.5, rand() * 3);
         return;
       case 'penguin':
       case 'cactus':
@@ -605,14 +605,14 @@ export class TrackHazards {
     this.add(h);
   }
 
-  /** Three of them on the inside half of the bend, staggered so you can weave through. */
+  /** Two of them on the inside half of the bend, staggered so you can weave through. */
   private patch(kind: 'penguin' | 'cactus', fr: Frame): void {
     const i = this.track.points.indexOf(fr.p);
     const tans = this.track.tangents;
     const a = tans[(i - 6 + SAMPLES) % SAMPLES];
     const b = tans[(i + 6) % SAMPLES];
     const inside = a.x * b.z - a.z * b.x > 0 ? -1 : 1; // lateral sign of the inside of the bend
-    for (const [along, lat] of [[-10, 3.4], [0, 6], [10, 2.4]] as const) {
+    for (const [along, lat] of [[-7, 2.8], [7, 5.4]] as const) {
       const pos = place(new THREE.Vector3(), fr, inside * (lat + this.rand() * 0.6), along);
       if (kind === 'cactus') {
         const obj = cactusMesh(this.rand);
