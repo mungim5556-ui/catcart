@@ -389,14 +389,15 @@ body.touch #wrongway { font-size: 22px; top: 30%; }
 
 /* Phone rocket start: shown during the countdown, lights up green on "1". */
 .t-rocket {
-  display: none; position: absolute !important; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom));
-  transform: translateX(-50%); width: 104px; height: 104px;
+  /* Sits right above the drift button (112px wide, 14px from the bottom). */
+  display: none; position: absolute !important; width: 80px; height: 80px;
+  right: calc(16px + 16px + env(safe-area-inset-right)); bottom: calc(14px + 112px + 12px + env(safe-area-inset-bottom));
 }
 body.counting .t-rocket { display: block; }
-.t-rocket span { display: block; font-size: 38px; line-height: 1; filter: grayscale(1); opacity: .6; }
-.t-rocket small { font-size: 12px; }
+.t-rocket span { display: block; font-size: 30px; line-height: 1; filter: grayscale(1); opacity: .6; }
+.t-rocket small { font-size: 10px; }
 body.rocket-go .t-rocket { background: rgba(60, 200, 110, .8) !important; border-color: #fff; animation: rocketPulse .35s ease-in-out infinite alternate; }
 body.rocket-go .t-rocket span { filter: none; opacity: 1; }
 body.rocket-go .t-rocket.down { background: rgba(255, 111, 145, .8) !important; }
-@keyframes rocketPulse { to { transform: translateX(-50%) scale(1.1); } }
+@keyframes rocketPulse { to { transform: scale(1.1); } }
 body.counting #speedo { display: none; }
