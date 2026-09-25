@@ -14,7 +14,7 @@ const PREFS_KEY = 'catcart.touch.v1';
 const FULL_LOCK = 28;
 const DEADZONE = 2.5;
 
-type Btn = 'left' | 'right' | 'brake' | 'drift' | 'item' | 'pause';
+type Btn = 'left' | 'right' | 'brake' | 'drift' | 'item' | 'pause' | 'rocket';
 
 /** Phones and tablets (a touchscreen laptop with a mouse still counts as desktop). */
 function isTouchDevice(): boolean {

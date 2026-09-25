@@ -3,7 +3,9 @@ import type { KartInput } from '../core/input';
 export type RacePhase = 'countdown' | 'racing' | 'finished';
 
 export const TOTAL_LAPS = 3;
-const COUNTDOWN = 3.5; // "3", "2", "1" then GO; the first 0.5 s is a beat to settle
+const COUNTDOWN = 3.5;
+/** Seconds before GO in which a rocket-start tap counts (while "1" shows). */
+const ROCKET_WINDOW = 1; // "3", "2", "1" then GO; the first 0.5 s is a beat to settle
 const RECORD_KEY = 'catcart.records.v1';
 const recordKey = (trackId: string) => `${RECORD_KEY}.${trackId}`;
 
@@ -43,6 +45,8 @@ export class RaceSession {
   prevRecords: Records = { ...this.records };
   rocketStart = false;
   private throttleHeld = 0; // how long throttle has been held during the countdown
+  /** Countdown time left at the first rocket-button tap (phones), or null. */
+  private tapAt: number | null = null;
 
   setTrack(id: string): void {
     this.trackId = id;
@@ -57,6 +61,22 @@ export class RaceSession {
     this.prevRecords = { ...this.records };
     this.rocketStart = false;
     this.throttleHeld = 0;
+    this.tapAt = null;
+  }
+
+  /** True while "1" is showing: the moment to hit the rocket button. */
+  get rocketWindow(): boolean {
+    return this.phase === 'countdown' && this.countdown <= ROCKET_WINDOW;
+  }
+
+  /**
+   * Phone rocket start: one tap on the 🚀 button. Only the first tap counts,
+   * so mashing it from "3" doesn't work.
+   */
+  rocketTap(): 'ok' | 'early' | 'ignored' {
+    if (this.phase !== 'countdown' || this.tapAt !== null) return 'ignored';
+    this.tapAt = this.countdown;
+    return this.countdown <= ROCKET_WINDOW ? 'ok' : 'early';
   }
 
   get lapStart(): number {
@@ -87,7 +107,7 @@ export class RaceSession {
         this.phase = 'racing';
         started = true;
         // Rocket start: press accelerate around when "1" appears — not earlier.
-        this.rocketStart = this.throttleHeld > 0.1 && this.throttleHeld < 1.1;
+        this.rocketStart = (this.throttleHeld > 0.1 && this.throttleHeld < 1.1) || this.tapAt !== null && this.tapAt <= ROCKET_WINDOW;
       }
       return { input: { ...input, throttle: 0, brake: 0, steer: 0, drift: false, driftPressed: false, reset: false, useItem: false }, started };
     }

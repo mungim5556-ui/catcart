@@ -562,6 +562,11 @@ function frame(now: number): void {
 
   if (mode === 'race') {
     if (input.consumePress('KeyH')) hud.toggleHelp();
+    if (touch.consumeTap('rocket')) {
+      const r = race.rocketTap();
+      if (r === 'ok') audio.menuSelect();
+      else if (r === 'early') hud.flash('너무 빨라요!', '#ff5a6e');
+    }
     if (touch.consumeTap('pause')) {
       if (race.phase === 'finished') goToTitle();
       else pause();
@@ -577,6 +582,8 @@ function frame(now: number): void {
   }
 
   touch.show(mode === 'race' && race.phase !== 'finished');
+  document.body.classList.toggle('counting', mode === 'race' && race.phase === 'countdown');
+  document.body.classList.toggle('rocket-go', race.rocketWindow);
   if (mode === 'race') {
     while (acc >= STEP) {
       step();

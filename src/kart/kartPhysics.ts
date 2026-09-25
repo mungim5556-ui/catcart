@@ -78,6 +78,8 @@ export class KartPhysics {
   /** Set for one step when something visual should react. */
   events: StepEvents = { landed: 0, hit: false, boost: null, hop: false };
 
+  private inStep = false;
+  private boostBetweenSteps: BoostSource | null = null;
   private driftWindow = 0; // time after a hop in which a drift can still start
 
   get forward(): THREE.Vector3 {
@@ -106,6 +108,7 @@ export class KartPhysics {
     this.boostTime = 0;
     this.spinTime = 0;
     this.invulnTime = 0;
+    this.boostBetweenSteps = null;
   }
 
   /** Item hit: spin out and lose most speed. Returns false if immune. */
@@ -130,7 +133,18 @@ export class KartPhysics {
   }
 
   step(dt: number, input: KartInput, world: KartWorld): void {
-    this.events = { landed: 0, hit: false, boost: null, hop: false };
+    // A boost started between steps (rocket start, fish item) is reported by this step.
+    this.events = { landed: 0, hit: false, boost: this.boostBetweenSteps, hop: false };
+    this.boostBetweenSteps = null;
+    this.inStep = true;
+    try {
+      this.simulate(dt, input, world);
+    } finally {
+      this.inStep = false;
+    }
+  }
+
+  private simulate(dt: number, input: KartInput, world: KartWorld): void {
 
     this.invulnTime = Math.max(0, this.invulnTime - dt);
     if (this.spinTime > 0) {
@@ -272,7 +286,10 @@ export class KartPhysics {
   }
 
   private addBoost(seconds: number, source: BoostSource): void {
-    if (this.boostTime <= 0.05) this.events.boost = source;
+    if (this.boostTime <= 0.05) {
+      if (this.inStep) this.events.boost = source;
+      else this.boostBetweenSteps = source;
+    }
     this.boostTime = Math.max(this.boostTime, seconds);
   }
 }
