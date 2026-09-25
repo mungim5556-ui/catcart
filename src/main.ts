@@ -6,7 +6,7 @@ import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
 import { ROSTER } from './kart/catKart';
 import { SAMPLES, Track } from './world/track';
-import { TrackHazards, type HazardHit } from './world/hazards';
+import { HAZARD_INFO, TrackHazards, type HazardHit } from './world/hazards';
 import { CUPS, TRACKS } from './world/trackDefs';
 import { Snowfall } from './fx/snowfall';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
@@ -491,7 +491,7 @@ function itemEffects(e: ItemEvent): void {
   } else if (near) audio.meow(0.06);
 }
 
-/** A kart ran into a robot vacuum or a cucumber. */
+/** A kart ran into one of the track's obstacles. */
 function hazardEffects(h: HazardHit): void {
   const near = h.kart.pos.distanceToSquared(player.physics.pos) < 60 * 60;
   const isPlayer = h.kart === player.physics;
@@ -500,13 +500,13 @@ function hazardEffects(h: HazardHit): void {
     if (near) audio.bump();
     return;
   }
+  const info = HAZARD_INFO[h.kind];
   if (near) {
-    const at = h.at.clone().setY(1);
-    const colors = h.kind === 'cucumber' ? [0x6cc24a, 0xd8f0a8] : [0xffffff, 0x9aa3b5];
-    for (let i = 0; i < 12; i++) sparks.emit(at, colors[i % 2], 6, 5, 0.5, 1.4);
+    const at = h.kart.pos.clone().setY(h.kart.pos.y + 1);
+    for (let i = 0; i < 12; i++) sparks.emit(at, info.colors[i % 2], 6, 5, 0.5, 1.4);
   }
   if (isPlayer) {
-    hud.flash(h.kind === 'cucumber' ? '🥒 오이다! 깜짝이야!' : '🤖 청소기다! 으악!', '#ff5a6e');
+    hud.flash(info.ouch, '#ff5a6e');
     chase.bump(0.7);
     audio.bump();
     audio.meow();
