@@ -19,8 +19,14 @@ const KEYS = {
   item: ['KeyE', 'ControlLeft', 'ControlRight'],
 };
 
-/** Keyboard + gamepad input. Keyboard steering is smoothed so it feels less twitchy. */
+import type { TouchControls } from './touch';
+
+/** Keyboard + gamepad + touch input. Keyboard steering is smoothed so it feels less twitchy. */
 export class Input {
+  /** On-screen buttons / tilt (phones). */
+  touch: TouchControls | null = null;
+  /** Set during the countdown: touch auto-acceleration waits for GO. */
+  countdown = false;
   private down = new Set<string>();
   private smoothSteer = 0;
   private prevDrift = false;
@@ -80,9 +86,23 @@ export class Input {
       item = item || !!pad.buttons[2]?.pressed;
     }
 
+    const t = this.touch;
+    let touchItem = false;
+    if (t?.active) {
+      const ts = t.steer;
+      if (Math.abs(ts) > Math.abs(steer)) steer = ts;
+      const touchBrake = t.isHeld('brake');
+      brake = Math.max(brake, touchBrake ? 1 : 0);
+      drift = drift || t.isHeld('drift');
+      touchItem = t.consumeTap('item');
+      // Auto-accelerate; during the countdown the drift button revs for a rocket start.
+      const auto = this.countdown ? (t.isHeld('drift') ? 1 : 0) : touchBrake ? 0 : 1;
+      throttle = Math.max(throttle, auto);
+    }
+
     const driftPressed = drift && !this.prevDrift;
     this.prevDrift = drift;
-    const useItem = itemTap || (item && !this.prevItem);
+    const useItem = itemTap || touchItem || (item && !this.prevItem);
     this.prevItem = item;
     return { throttle, brake, steer, drift, driftPressed, reset, useItem };
   }

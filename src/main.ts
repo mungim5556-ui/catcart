@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { Input, type KartInput } from './core/input';
+import { TouchControls } from './core/touch';
 import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
 import { ROSTER } from './kart/catKart';
@@ -99,6 +100,8 @@ scene.add(sparks.group);
 
 const chase = new ChaseCamera(window.innerWidth / window.innerHeight);
 const input = new Input();
+const touch = new TouchControls();
+input.touch = touch;
 const hud = new Hud();
 const race = new RaceSession();
 const raceHud = new RaceHud(track);
@@ -135,6 +138,7 @@ function restartRace(): void {
   if (menus.screen !== 'none') menus.show('none');
   mode = 'race';
   input.clearPresses();
+  touch.clearTaps();
   audio.duck(false);
   audio.setTempo(1);
   audio.setSong('race');
@@ -154,6 +158,7 @@ const menus = new Menus(ROSTER, {
     placeOnGrid();
   },
   onStart: (i, d, mode, t, c) => {
+    if (touch.active) enterMobileRace();
     assignCats(i);
     difficulty = d;
     if (mode === 'cup') startCup(c);
@@ -166,6 +171,7 @@ const menus = new Menus(ROSTER, {
   onResume: () => {
     mode = 'race';
     input.clearPresses();
+    touch.clearTaps();
     audio.duck(false);
   },
   onRestart: () => restartRace(),
@@ -173,6 +179,12 @@ const menus = new Menus(ROSTER, {
   onToggleSound: () => audio.toggle(),
   soundOn: () => audio.enabled,
   onSound: (k) => (k === 'move' ? audio.menuMove() : audio.menuSelect()),
+  touchMode: () => (touch.active ? touch.mode : null),
+  onToggleTouchMode: () => {
+    touch.setMode(touch.mode === 'tilt' ? 'buttons' : 'tilt');
+    if (touch.mode === 'tilt') void touch.requestTilt();
+  },
+  onRecenter: () => touch.calibrate(),
 });
 
 function goToTitle(): void {
@@ -191,6 +203,22 @@ function goToTitle(): void {
   audio.duck(false);
   audio.setTempo(1);
   audio.setSong('menu');
+}
+
+/** Phones: ask for the tilt sensor (iOS needs a tap for this) and go fullscreen landscape. */
+function enterMobileRace(): void {
+  if (touch.mode === 'tilt') void touch.requestTilt();
+  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+  if (!document.fullscreenElement) {
+    const req = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
+    try {
+      const p = req?.() as Promise<void> | undefined;
+      p?.then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.('landscape').catch(() => {}))
+        .catch(() => {});
+    } catch {
+      /* not supported (iOS Safari): play in the browser window */
+    }
+  }
 }
 
 function pause(): void {
@@ -371,6 +399,9 @@ function step(): void {
   for (const r of racers) r.beginStep();
 
   // Player input goes through the race session (countdown lock, timing).
+  input.countdown = race.phase === 'countdown';
+  // Whatever angle the phone is held at during the countdown becomes "straight".
+  if (race.phase === 'countdown') touch.calibrate();
   const gated = race.step(STEP, inputOverride ? inputOverride() : input.read(STEP));
   const count = race.countdownLabel;
   if (count !== lastCount && count !== null) audio.countdown(false);
@@ -531,6 +562,10 @@ function frame(now: number): void {
 
   if (mode === 'race') {
     if (input.consumePress('KeyH')) hud.toggleHelp();
+    if (touch.consumeTap('pause')) {
+      if (race.phase === 'finished') goToTitle();
+      else pause();
+    }
     const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
     const esc = input.consumePress('Escape') || input.consumePress('KeyP');
     if (race.phase === 'finished') {
@@ -541,6 +576,7 @@ function frame(now: number): void {
     for (const code of MENU_KEYS) if (input.consumePress(code)) menus.key(code);
   }
 
+  touch.show(mode === 'race' && race.phase !== 'finished');
   if (mode === 'race') {
     while (acc >= STEP) {
       step();

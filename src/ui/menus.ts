@@ -36,6 +36,10 @@ export interface MenuHandlers {
   soundOn(): boolean;
   /** UI feedback sound. */
   onSound(kind: 'move' | 'select'): void;
+  /** Phone steering: 'tilt' / 'buttons', or null on desktop. */
+  touchMode(): 'tilt' | 'buttons' | null;
+  onToggleTouchMode(): void;
+  onRecenter(): void;
 }
 
 const PREFS_KEY = 'catcart.prefs.v1';
@@ -138,6 +142,7 @@ export class Menus {
             label: `${c.emoji} ${c.name} <small>${c.tracks.map((id) => TRACKS.find((t) => t.id === id)?.emoji).join('')}</small>`,
             action: `cup:${i}`,
           })),
+          ...this.touchButton(),
           { label: '🎮 조작법', action: 'controls' },
           this.soundButton(),
         ];
@@ -148,6 +153,8 @@ export class Menus {
           { label: '▶ 계속하기', action: 'resume' },
           { label: '↻ 다시 시작', action: 'restart' },
           { label: '🏠 메인 메뉴', action: 'quit' },
+          ...(this.h.touchMode() === 'tilt' ? [{ label: '🎯 기울기 중앙 맞추기', action: 'recenter' }] : []),
+          ...this.touchButton(),
           this.soundButton(),
         ];
       default:
@@ -201,7 +208,19 @@ export class Menus {
       case 'sound':
         this.h.onToggleSound();
         return this.render();
+      case 'touchmode':
+        this.h.onToggleTouchMode();
+        return this.render();
+      case 'recenter':
+        this.h.onRecenter();
+        return this.act('resume');
     }
+  }
+
+  private touchButton(): { label: string; action: string }[] {
+    const m = this.h.touchMode();
+    if (!m) return [];
+    return [{ label: m === 'tilt' ? '📱 조향: 기울기' : '📱 조향: ◀ ▶ 버튼', action: 'touchmode' }];
   }
 
   private soundButton(): { label: string; action: string } {
@@ -274,7 +293,11 @@ export class Menus {
               <tr><td><kbd>R</kbd></td><td>도로로 복귀</td></tr>
               <tr><td><kbd>Esc</kbd> <kbd>P</kbd></td><td>일시정지</td></tr>
             </table>
-            <p class="tip">🚀 카운트다운 <b>1</b>이 나올 때 가속하면 로켓 스타트!</p>
+            ${
+              this.h.touchMode()
+                ? `<p class="tip">📱 <b>휴대폰:</b> 자동으로 달려요. ${this.h.touchMode() === 'tilt' ? '휴대폰을 <b>핸들처럼 기울여</b> 조향' : '<b>◀ ▶</b> 버튼으로 조향'}하고,<br/>브레이크 · 드리프트 · 아이템 버튼을 쓰세요. 카운트다운 <b>1</b>에서 <b>드리프트</b>를 누르면 로켓 스타트!</p>`
+                : '<p class="tip">🚀 카운트다운 <b>1</b>이 나올 때 가속하면 로켓 스타트!</p>'
+            }
             ${list()}
           </div>`;
         return;

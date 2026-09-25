@@ -6,6 +6,8 @@ const ICONS = Object.values(ITEM_ICON);
 export class ItemHud {
   private box = document.getElementById('item')!;
   private icon = document.getElementById('item-icon')!;
+  /** Mirror on the touch item button. */
+  private touchIcon = document.getElementById('t-item-icon');
   private shown: ItemKind | null | 'spin' = null;
   private tick = 0;
 
@@ -25,5 +27,6 @@ export class ItemHud {
       this.shown = h.item;
     }
     this.box.classList.toggle('ready', !!h.item && h.roulette <= 0);
+    if (this.touchIcon) this.touchIcon.textContent = this.icon.textContent || '🎁';
   }
 }

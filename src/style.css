@@ -315,3 +315,74 @@ body.in-menu #speedlines { display: none; }
 }
 #results .cup-title { margin: 12px 0 2px; font-size: 16px; color: #7a5cff; }
 #results table.board.cup small { color: #52c77a; font-weight: 800; margin-left: 2px; }
+
+/* ---------- Phones: touch buttons & compact layout ---------- */
+body.touch { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#touch { display: none; position: fixed; inset: 0; pointer-events: none; }
+#touch.show { display: block; }
+#touch button {
+  pointer-events: auto; position: relative; border: 0; color: #fff; font: inherit; font-weight: 900;
+  background: rgba(40, 30, 60, .45); border: 3px solid rgba(255,255,255,.75); border-radius: 50%;
+  -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+#touch button.down { background: rgba(255, 111, 145, .75); transform: scale(.94); }
+.t-pause {
+  position: absolute !important; left: calc(12px + env(safe-area-inset-left)); top: 10px;
+  width: 46px; height: 46px; font-size: 20px;
+}
+.t-left, .t-right {
+  position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: flex-end; gap: 12px;
+}
+.t-left { left: calc(16px + env(safe-area-inset-left)); }
+.t-right { right: calc(16px + env(safe-area-inset-right)); }
+.t-brake { width: 84px; height: 84px; font-size: 15px; }
+.t-arrows { display: none; gap: 10px; }
+.t-arrow { width: 84px; height: 84px; font-size: 30px; }
+body.steer-buttons .t-arrows { display: flex; }
+body.steer-buttons .t-left { flex-direction: column-reverse; align-items: flex-start; }
+body.steer-buttons .t-brake { width: 64px; height: 64px; font-size: 12px; }
+.t-drift { width: 112px; height: 112px; font-size: 18px; }
+.t-item { width: 76px; height: 76px; margin-bottom: 70px; }
+.t-item span { display: block; font-size: 30px; line-height: 1; }
+.t-item small { font-size: 11px; }
+.t-rotate {
+  display: none; position: absolute; left: 50%; top: 130px; transform: translateX(-50%);
+  background: rgba(40,30,60,.6); padding: 4px 12px; border-radius: 12px; font-size: 13px; white-space: nowrap;
+}
+@media (orientation: portrait) { body.touch .t-rotate { display: block; } }
+
+/* Move the race HUD out of the thumbs' way. */
+body.touch #help { display: none; }
+body.touch #item { top: 8px; width: 60px; height: 60px; border-width: 3px; }
+body.touch #item-icon { font-size: 34px; line-height: 54px; }
+body.touch #item small { display: none; }
+body.touch #surface { top: 76px; }
+body.touch #place { left: calc(68px + env(safe-area-inset-left)); top: 6px; bottom: auto; }
+body.touch #position { font-size: 36px; }
+body.touch #minimap { left: calc(12px + env(safe-area-inset-left)); top: 64px; bottom: auto; width: 96px; height: 96px; }
+body.touch #speedo { right: 50%; transform: translateX(50%); bottom: 6px; font-size: 26px; }
+body.touch #speedo small { font-size: 12px; }
+body.touch #drift { bottom: 44px; width: 180px; }
+body.touch #race #lap-row { font-size: 30px; }
+body.touch #race #time { font-size: 18px; }
+body.touch #race #splits, body.touch #race #best { font-size: 11px; }
+body.touch #banner { font-size: 36px; top: 28%; }
+body.touch #countdown { font-size: 96px; }
+body.touch #wrongway { font-size: 22px; top: 30%; }
+
+/* Short landscape phones: shrink menus so everything fits. */
+@media (max-height: 520px) {
+  .logo { font-size: 44px; }
+  .tagline { margin: 12px 0 10px; font-size: 15px; }
+  .title-card .menu-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .menu-buttons button { min-width: 180px; padding: 7px 14px; font-size: 15px; }
+  .title-card .hint { display: none; }
+  .panel { padding: 12px 18px; max-height: calc(100vh - 16px); overflow: auto; }
+  .panel h2 { font-size: 20px; margin-bottom: 8px; }
+  table.controls td { padding: 3px 8px; font-size: 13px; }
+  .select-title { font-size: 20px; top: 4px; }
+  #results .card { max-height: calc(100vh - 16px); overflow: auto; padding: 12px 18px; }
+  #results h2 { font-size: 22px; }
+  #results .total { font-size: 28px; }
+  #results td { padding: 1px 10px; font-size: 13px; }
+}
