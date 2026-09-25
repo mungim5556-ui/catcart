@@ -1,5 +1,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe6ff; }
+/* No double-tap zoom anywhere (iOS Safari ignores user-scalable=no); panels can still scroll. */
+* { touch-action: manipulation; }
 body { font-family: 'Trebuchet MS', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; color: #fff; }
 #app canvas { display: block; }
 

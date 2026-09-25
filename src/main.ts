@@ -20,6 +20,7 @@ import { GameAudio } from './audio/audio';
 import { SkidMarks } from './fx/skidMarks';
 import { Ceremony } from './fx/ceremony';
 import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
+import { preventZoom } from './core/noZoom';
 import type { CupView } from './ui/raceHud';
 
 const STEP = 1 / 60;
@@ -33,6 +34,7 @@ const CATCH_UP_BEHIND = 0.0007;
 // --- Renderer & scene ---
 /** Phones get a lighter renderer: capped resolution and cheaper shadows. */
 const IS_PHONE = window.matchMedia?.('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
+if (IS_PHONE) preventZoom();
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_PHONE ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
