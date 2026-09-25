@@ -47,6 +47,8 @@ export const KART = {
   catnipSpeed: 1.15,
   /** Upward speed when leaving a ramp (plus a bit per unit of forward speed). */
   rampLaunch: 7.5,
+  /** Upward speed a kart can pick up from climbing (a ramp head-on at top speed is ~9). */
+  maxClimbSpeed: 10,
   rampLaunchPerSpeed: 0.13,
   trickDuration: 0.45,
   trickBoost: 1.0,
@@ -322,8 +324,10 @@ export class KartPhysics {
     const ground = world.heightAt(this.pos.x, this.pos.z);
     if (this.grounded) {
       if (ground >= this.pos.y - 0.15) {
-        // Follow the ground; remember the climb rate so ramps launch us.
-        this.vel.y = (ground - this.pos.y) / dt;
+        // Follow the ground; remember the climb rate so ramps launch us. Capped: stepping onto
+        // a ramp from the side jumps a metre in one frame, which would otherwise read as
+        // ~80 m/s upwards and fire the kart into the sky when it slides off the edge.
+        this.vel.y = Math.min((ground - this.pos.y) / dt, KART.maxClimbSpeed);
         this.pos.y = ground;
       } else {
         this.grounded = false;
