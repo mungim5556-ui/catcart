@@ -6,6 +6,7 @@ import { ChaseCamera } from './core/chaseCamera';
 import { KART, KartPhysics } from './kart/kartPhysics';
 import { ROSTER } from './kart/catKart';
 import { SAMPLES, Track } from './world/track';
+import { TrackHazards, type HazardHit } from './world/hazards';
 import { CUPS, TRACKS } from './world/trackDefs';
 import { Snowfall } from './fx/snowfall';
 import { Sparks, DRIFT_COLORS } from './fx/sparks';
@@ -86,7 +87,8 @@ function assignCats(catIndex: number): void {
 }
 
 let items = new ItemSystem(track);
-scene.add(items.group);
+let trackHazards = new TrackHazards(track, track.def.hazards, track.def.seed);
+scene.add(items.group, trackHazards.group);
 const itemHud = new ItemHud();
 
 const audio = new GameAudio();
@@ -250,11 +252,13 @@ goToTitle();
 function loadTrack(i: number): void {
   if (i === trackIndex) return;
   trackIndex = i;
-  scene.remove(track.group, items.group);
+  scene.remove(track.group, items.group, trackHazards.group);
   track.dispose();
+  trackHazards.dispose();
   track = new Track(TRACKS[i]);
   items = new ItemSystem(track);
-  scene.add(track.group, items.group);
+  trackHazards = new TrackHazards(track, track.def.hazards, track.def.seed);
+  scene.add(track.group, items.group, trackHazards.group);
   for (const r of racers) r.setTrack(track);
   raceHud.setTrack(track);
   race.setTrack(track.def.id);
@@ -266,7 +270,9 @@ function loadTrack(i: number): void {
 function applyTheme(): void {
   const t = track.theme;
   (scene.background as THREE.Color).setHex(t.sky);
-  scene.fog = new THREE.Fog(t.sky, t.fog[0], t.fog[1]);
+  // Courses are bigger than the fog was tuned for: push it back so the horizon still shows.
+  const extra = track.bounds - 170;
+  scene.fog = new THREE.Fog(t.sky, t.fog[0] + extra * 0.5, t.fog[1] + extra);
   document.body.style.background = '#' + t.sky.toString(16).padStart(6, '0');
   hemi.color.setHex(t.hemi[0]);
   hemi.groundColor.setHex(t.hemi[1]);
@@ -322,7 +328,7 @@ function startCeremony(): void {
   raceHud.hideResults();
   document.body.classList.add('in-ceremony');
   // Swap the race world for the stage (sky, fog and light stay from the last track).
-  track.group.visible = items.group.visible = skids.mesh.visible = false;
+  track.group.visible = items.group.visible = trackHazards.group.visible = skids.mesh.visible = false;
   for (const r of racers) r.root.visible = false;
   const top = view.table.slice(0, 3);
   ceremony.start(top.map((row) => row.racer.style));
@@ -353,7 +359,7 @@ function endCeremony(): void {
   ceremony.stop();
   ceremonyEl.classList.remove('show');
   document.body.classList.remove('in-ceremony');
-  track.group.visible = items.group.visible = skids.mesh.visible = true;
+  track.group.visible = items.group.visible = trackHazards.group.visible = skids.mesh.visible = true;
   for (const r of racers) r.root.visible = true;
   confetti = 0;
 }
@@ -485,6 +491,28 @@ function itemEffects(e: ItemEvent): void {
   } else if (near) audio.meow(0.06);
 }
 
+/** A kart ran into a robot vacuum or a cucumber. */
+function hazardEffects(h: HazardHit): void {
+  const near = h.kart.pos.distanceToSquared(player.physics.pos) < 60 * 60;
+  const isPlayer = h.kart === player.physics;
+  if (!h.hit) {
+    if (isPlayer) hud.flash('📦 방어 성공!', '#c9a06a');
+    if (near) audio.bump();
+    return;
+  }
+  if (near) {
+    const at = h.at.clone().setY(1);
+    const colors = h.kind === 'cucumber' ? [0x6cc24a, 0xd8f0a8] : [0xffffff, 0x9aa3b5];
+    for (let i = 0; i < 12; i++) sparks.emit(at, colors[i % 2], 6, 5, 0.5, 1.4);
+  }
+  if (isPlayer) {
+    hud.flash(h.kind === 'cucumber' ? '🥒 오이다! 깜짝이야!' : '🤖 청소기다! 으악!', '#ff5a6e');
+    chase.bump(0.7);
+    audio.bump();
+    audio.meow();
+  } else if (near) audio.meow(0.06);
+}
+
 // --- Simulation step ---
 function onFinish(): void {
   if (race.phase === 'finished') raceHud.showResults(race, standings(), player, cupView());
@@ -510,7 +538,7 @@ function step(): void {
   const others = racers.map((r) => r.physics);
   const racing = race.phase !== 'countdown';
   const order = standings();
-  const hazards = items.hazards;
+  const hazards = [...items.hazards, ...trackHazards.positions];
 
   if (race.phase === 'racing' && gated.input.useItem) {
     for (const e of items.use(player, order)) itemEffects(e);
@@ -545,6 +573,8 @@ function step(): void {
     r.physics.drifting = false;
   }
   if (racing) for (const e of items.update(STEP, racers, order)) itemEffects(e);
+  trackHazards.update(STEP);
+  if (racing) for (const h of trackHazards.collide(others, KART.radius)) hazardEffects(h);
   if (!hadRoulette && player.roulette > 0) audio.itemBox();
   playerStepEffects();
 
@@ -733,11 +763,15 @@ Object.assign(window, {
     get items() {
       return items;
     },
+    get hazards() {
+      return trackHazards;
+    },
     loadTrack, startCup, nextCupRace,
     get cup() {
       return cup;
     },
     step, restartRace, menus, audio,
+    setDifficulty: (i: number) => (difficulty = DIFFICULTIES[i]),
     setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
   },
 });

@@ -428,12 +428,12 @@ export function buildLogTunnel(radius: number, halfLength: number): THREE.Object
 }
 
 /** Scenery on the horizon, far outside the fence. */
-export function buildBackdrop(kind: 'mountains' | 'dunes' | 'skyline', rand: () => number): THREE.Object3D {
+export function buildBackdrop(kind: 'mountains' | 'dunes' | 'skyline', rand: () => number, bounds: number): THREE.Object3D {
   const g = new THREE.Group();
   const count = kind === 'skyline' ? 60 : 22;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2 + rand() * 0.2;
-    const dist = (kind === 'dunes' ? 230 : 260) + rand() * 90;
+    const dist = bounds + (kind === 'dunes' ? 60 : 90) + rand() * 90;
     const x = Math.cos(a) * dist;
     const z = Math.sin(a) * dist;
     if (kind === 'mountains') {

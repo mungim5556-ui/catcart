@@ -63,22 +63,32 @@ export class AiDriver {
         break;
       }
     }
-    // Steer around bananas on the road ahead.
+    // Steer around bananas, vacuums and cucumbers on the road ahead. Pass each one on the
+    // road-centre side (there's more room there), and let a cluster push the lane
+    // cumulatively so a row of cucumbers moves us past all of them, not just the last one.
+    let dodging = false;
     for (const h of hazards) {
       const dx = h.x - k.pos.x;
       const dz = h.z - k.pos.z;
       const ahead = dx * t0.x + dz * t0.z;
-      if (ahead <= 0 || ahead > 32) continue;
-      const hLat = lateral(h.x, h.z);
-      if (ahead < 14 && Math.abs(hLat - myLat) < 2.4) {
-        // Close and in our path: swerve hard to whichever side we're already on.
-        lane = hLat + (myLat >= hLat ? 4.5 : -4.5);
-      } else if (Math.abs(hLat - lane) < 3) lane = hLat + (lane >= hLat ? 3.4 : -3.4);
+      if (ahead <= 0 || ahead > 36) continue;
+      // Measure its offset against the road where it lies, not where we are (bends skew that).
+      const hi = this.track.nearestAround(h.x, h.z, idx, 24).index;
+      const ht = tans[hi];
+      const hLat = (h.x - pts[hi].x) * ht.z - (h.z - pts[hi].z) * ht.x;
+      const gap = ahead < 14 ? 3.8 : 3.2;
+      if (Math.abs(hLat - lane) >= gap) continue;
+      // Near the kerb there's no room on the outside: go the other way.
+      let pass = hLat > 0.5 ? -1 : hLat < -0.5 ? 1 : lane >= hLat ? 1 : -1;
+      if (Math.abs(hLat + pass * gap) > MAX_LANE) pass = -pass;
+      lane = pass > 0 ? Math.max(lane, hLat + gap) : Math.min(lane, hLat - gap);
+      dodging = true;
     }
     lane = Math.max(-MAX_LANE, Math.min(MAX_LANE, lane));
 
     // --- Steering: aim at a point further ahead the faster we go ---
-    const la = 5 + Math.round(speed * 0.2);
+    // Look closer while dodging, so we hold the lane instead of cutting across it.
+    const la = dodging ? 5 : 5 + Math.round(speed * 0.2);
     const ti = (idx + la) % SAMPLES;
     const tt = tans[ti];
     const tx = pts[ti].x + tt.z * lane;

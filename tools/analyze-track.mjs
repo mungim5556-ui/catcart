@@ -1,9 +1,10 @@
 // Track shape checker: corner radii, self-clearance, straights (for pads/ramps).
 import * as THREE from 'three';
-const N = 400;
+const N = 500; // SAMPLES in src/world/track.ts
+const SCALE = 1.4; // TRACK_SCALE: courses are stretched in game, so report real metres
 const tracks = JSON.parse(process.argv[2]);
 for (const [name, pts] of Object.entries(tracks)) {
-  const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+  const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x * SCALE, 0, z * SCALE)), true, 'centripetal');
   const P = curve.getSpacedPoints(N).slice(0, N), L = curve.getLength(), ds = L / N;
   const head = (i) => { const t = curve.getTangentAt(((i % N) + N) % N / N); return Math.atan2(t.x, t.z); };
   const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -12,8 +13,8 @@ for (const [name, pts] of Object.entries(tracks)) {
   for (let i = 0; i < N; i++) R.push((2 * w * ds) / Math.max(1e-6, Math.abs(wrap(head(i + w) - head(i - w)))));
   // clearance: min distance between samples more than 40 samples apart along the loop
   let clear = Infinity, where = null;
-  for (let i = 0; i < N; i++) for (let j = i + 40; j < N; j++) {
-    if (N - (j - i) < 40) continue;
+  for (let i = 0; i < N; i++) for (let j = i + 50; j < N; j++) {
+    if (N - (j - i) < 50) continue;
     const d = P[i].distanceTo(P[j]); if (d < clear) { clear = d; where = [i, j]; }
   }
   const minR = Math.min(...R), minAt = R.indexOf(minR);

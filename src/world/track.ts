@@ -5,7 +5,9 @@ import { buildBackdrop, buildLandmark, buildLogTunnel, buildProp } from './scene
 import { mergeStatic } from './mergeStatic';
 
 export const ROAD_WIDTH = 16;
-export const SAMPLES = 400;
+export const SAMPLES = 500;
+/** Track layouts in trackDefs are drawn small; every course is stretched by this much. */
+export const TRACK_SCALE = 1.4;
 
 interface Rect {
   // oriented rectangle on the ground: center, forward axis, half sizes
@@ -53,7 +55,8 @@ const mat = (color: number) => new THREE.MeshStandardMaterial({ color, flatShadi
 export class Track implements KartWorld {
   readonly group = new THREE.Group();
   readonly curve: THREE.CatmullRomCurve3;
-  readonly bounds = 170;
+  /** Half size of the fenced square. */
+  readonly bounds: number;
   readonly theme: Theme;
   /** Evenly spaced centre-line samples (index 0 = start/finish line). */
   readonly points: THREE.Vector3[];
@@ -66,12 +69,13 @@ export class Track implements KartWorld {
   constructor(readonly def: TrackDef) {
     this.theme = def.theme;
     this.curve = new THREE.CatmullRomCurve3(
-      def.points.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+      def.points.map(([x, z]) => new THREE.Vector3(x * TRACK_SCALE, 0, z * TRACK_SCALE)),
       true,
       'centripetal',
     );
     this.points = this.curve.getSpacedPoints(SAMPLES).slice(0, SAMPLES);
     this.tangents = this.points.map((_, i) => this.curve.getTangentAt(i / SAMPLES).setY(0).normalize());
+    this.bounds = Math.ceil(Math.max(...this.points.map((p) => Math.max(Math.abs(p.x), Math.abs(p.z)))) + 32);
 
     this.buildGround();
     this.buildRoad();
@@ -83,7 +87,7 @@ export class Track implements KartWorld {
     this.buildLandmarks();
     this.buildLining();
     this.buildScenery();
-    if (this.theme.backdrop) this.group.add(buildBackdrop(this.theme.backdrop, rng(def.seed + 7)));
+    if (this.theme.backdrop) this.group.add(buildBackdrop(this.theme.backdrop, rng(def.seed + 7), this.bounds));
     // The whole track is static: collapse it into a few big meshes (one per material).
     mergeStatic(this.group);
     this.buildFence();
@@ -280,7 +284,8 @@ export class Track implements KartWorld {
 
     if (this.theme.water !== undefined) {
       // Beach: the fenced area is sand; beyond it, the sea.
-      geo.scale(0.44, 1, 0.44);
+      const k = (this.bounds + 28) / 450;
+      geo.scale(k, 1, k);
       const sea = new THREE.Mesh(
         new THREE.PlaneGeometry(1400, 1400).rotateX(-Math.PI / 2),
         new THREE.MeshStandardMaterial({ color: this.theme.water, roughness: 0.3, metalness: 0.1 }),
@@ -471,11 +476,14 @@ export class Track implements KartWorld {
 
   private buildLandmarks(): void {
     for (const lm of this.def.landmarks ?? []) {
-      const { obj, radius } = buildLandmark(lm.kind, lm.size);
-      obj.position.set(lm.x, 0, lm.z);
+      // Positions stretch with the track; the monuments grow a little less so they keep clear of the road.
+      const { obj, radius } = buildLandmark(lm.kind, lm.size * 1.2);
+      const x = lm.x * TRACK_SCALE;
+      const z = lm.z * TRACK_SCALE;
+      obj.position.set(x, 0, z);
       obj.rotation.y = lm.rot ?? 0;
       this.group.add(obj);
-      this.obstacles.push({ x: lm.x, z: lm.z, r: radius });
+      this.obstacles.push({ x, z, r: radius });
     }
   }
 
@@ -516,7 +524,9 @@ export class Track implements KartWorld {
     const props = this.theme.props;
     const total = props.reduce((a, [, w]) => a + w, 0);
     let placed = 0;
-    for (let attempt = 0; attempt < 900 && placed < 170; attempt++) {
+    // Same density as before the courses were stretched.
+    const area = (this.bounds / 170) ** 2;
+    for (let attempt = 0; attempt < 900 * area && placed < 170 * area; attempt++) {
       const x = (rand() * 2 - 1) * (this.bounds - 6);
       const z = (rand() * 2 - 1) * (this.bounds - 6);
       if (this.nearest(x, z).dist < ROAD_WIDTH / 2 + 7) continue;

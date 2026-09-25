@@ -14,8 +14,8 @@ export interface Difficulty {
 
 export const DIFFICULTIES: Difficulty[] = [
   { label: '쉬움', cc: '50cc', aiPace: 0.93, catchUpAhead: 0.0016 },
-  { label: '보통', cc: '100cc', aiPace: 1, catchUpAhead: 0.0011 },
-  { label: '어려움', cc: '150cc', aiPace: 1.045, catchUpAhead: 0.0006 },
+  { label: '보통', cc: '100cc', aiPace: 1.04, catchUpAhead: 0.0008 },
+  { label: '어려움', cc: '150cc', aiPace: 1.09, catchUpAhead: 0.0003 },
 ];
 
 export type Screen = 'title' | 'controls' | 'select' | 'track' | 'pause' | 'none';
