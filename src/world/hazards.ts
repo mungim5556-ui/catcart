@@ -552,13 +552,14 @@ export class TrackHazards {
     const obj = kind === 'butterfly' ? butterflyMesh(this.rand) : dustDevilMesh();
     const wings = obj.children.filter((c) => c.name === 'wing');
     const swirl = obj.getObjectByName('swirl');
-    const reach = kind === 'butterfly' ? { lat: 6, along: 8 } : { lat: 5.5, along: 10 };
+    // Dust devils only drift sideways: one that moved along the road could follow a spun-out kart and hit it again.
+    const reach = kind === 'butterfly' ? { lat: 6, along: 8 } : { lat: 6, along: 0 };
     const prev = new THREE.Vector3();
     const h: Hazard = {
       kind, obj, radius: kind === 'butterfly' ? 1.4 : 2.2, height: kind === 'butterfly' ? 1.2 : 7, pos: new THREE.Vector3(), threat: true,
       update: (time, dt) => {
         const t = time + phase;
-        const k = kind === 'butterfly' ? 1 : 0.6;
+        const k = kind === 'butterfly' ? 1 : 0.85;
         prev.copy(h.pos);
         place(h.pos, fr, Math.sin(t * 0.7 * k) * reach.lat, Math.sin(t * 0.45 * k + 1) * reach.along);
         if (kind === 'butterfly') {

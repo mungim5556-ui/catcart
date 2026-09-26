@@ -83,7 +83,12 @@ function cupTracks(): number[] {
 /** Player becomes `catIndex`; everyone else in the roster races as AI. */
 function assignCats(catIndex: number): void {
   player.setCharacter(ROSTER[catIndex]);
-  ROSTER.filter((_, i) => i !== catIndex).forEach((c, i) => rivals[i].setCharacter(c));
+  const others = ROSTER.filter((_, i) => i !== catIndex);
+  // Same field whoever you pick: the rivals always get the strongest AI profiles, handed out in
+  // their own pecking order, so picking a fast cat doesn't leave you racing a weaker pack.
+  const profiles = ROSTER.map((c) => c.ai).sort((a, b) => b.pace - a.pace);
+  const ranked = [...others].sort((a, b) => b.ai.pace - a.ai.pace);
+  ranked.forEach((c, rank) => rivals[others.indexOf(c)].setCharacter({ ...c, ai: profiles[rank] }));
 }
 
 let items = new ItemSystem(track);
@@ -780,6 +785,7 @@ Object.assign(window, {
     },
     step, restartRace, menus, audio,
     setDifficulty: (i: number) => (difficulty = DIFFICULTIES[i]),
+    assignCats,
     setInputOverride: (fn: (() => KartInput) | null) => (inputOverride = fn),
   },
 });
