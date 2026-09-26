@@ -15,7 +15,7 @@ import { RaceHud } from './ui/raceHud';
 import { LapTracker } from './race/lapTracker';
 import { RaceSession, TOTAL_LAPS } from './race/raceSession';
 import { IDLE_INPUT, Racer, collideKarts } from './race/racer';
-import { ItemSystem, type ItemEvent } from './items/items';
+import { ItemSystem, type HitItem, type ItemEvent } from './items/items';
 import { ItemHud } from './ui/itemHud';
 import { GameAudio } from './audio/audio';
 import { SkidMarks } from './fx/skidMarks';
@@ -481,8 +481,16 @@ function itemEffects(e: ItemEvent): void {
     for (let i = 0; i < 14; i++) sparks.emit(at, colors[i % 2], 7, 5, 0.6, 1.6);
   }
   if (e.victim === player) {
-    const ouch: Record<string, string> = { banana: '미끄덩!', milk: '우유에 미끌!', bath: '으악, 물벼락!', catnip: '냥펀치 맞았다!' };
-    hud.flash(ouch[e.item] ?? '냐앙!', '#ff5a6e');
+    // Each item gets its own line (with its emoji) so it's clear what just hit you.
+    const ouch: Record<HitItem, string> = {
+      yarn: '🧶 털실 뭉치에 맞았다!',
+      mouse: '🐭 태엽 쥐에 꽈당!',
+      banana: '🍌 미끄덩!',
+      milk: '🥛 우유에 미끌!',
+      bath: `💦 ${e.by.name}의 물벼락!`,
+      catnip: '🌿 냥펀치 맞았다!',
+    };
+    hud.flash(ouch[e.item], '#ff5a6e');
     chase.bump(e.item === 'milk' ? 0.3 : 0.7);
     audio.meow();
   } else if (e.by === player) {
