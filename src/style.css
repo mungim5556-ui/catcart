@@ -223,6 +223,14 @@ table.controls td:first-child { white-space: nowrap; text-align: right; }
 .cat-pick .arrow:hover { background: #7a5cff; color: #fff; }
 .cat-name .name { font-size: 36px; font-weight: 900; line-height: 1.1; }
 .cat-name .trait { font-size: 14px; opacity: .75; margin: 2px 0 8px; }
+.cat-name .ability {
+  display: inline-block; font-size: 13px; color: #3a2e4f; background: #fff4d6; border-radius: 12px; padding: 4px 10px; margin: 0 0 8px;
+}
+.acc-pick { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; }
+.acc-pick .arrow { border: 0; background: #f4effb; color: #7a5cff; width: 34px; height: 34px; border-radius: 50%; font-size: 14px; }
+.acc-pick .arrow:hover { background: #7a5cff; color: #fff; }
+.acc-name { min-width: 150px; font-size: 18px; font-weight: 800; color: #3a2e4f; }
+.acc-name small { display: block; font-size: 11px; font-weight: 600; opacity: .6; }
 .dots { display: flex; gap: 8px; justify-content: center; }
 .dots .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; padding: 0; box-shadow: 0 0 0 1px #ccc; }
 .dots .dot.on { transform: scale(1.35); box-shadow: 0 0 0 2px #3a2e4f; }
@@ -261,6 +269,11 @@ table.controls td:first-child { white-space: nowrap; text-align: right; }
   .cat-pick .arrow { width: 40px; height: 40px; font-size: 16px; }
   .cat-name .name { font-size: 26px; }
   .cat-name .trait { font-size: 12px; margin: 0 0 4px; }
+  .cat-name .ability { font-size: 11px; padding: 2px 8px; margin: 0 0 4px; }
+  .acc-pick { margin-top: 4px; }
+  .acc-pick .arrow { width: 28px; height: 28px; font-size: 12px; }
+  .acc-name { font-size: 15px; }
+  .acc-name small { display: inline; margin-left: 4px; }
   .dots .dot { width: 12px; height: 12px; }
   .diff { margin: 8px 0 8px; }
   .diff button { padding: 5px 12px; font-size: 14px; }

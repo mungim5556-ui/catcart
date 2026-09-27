@@ -77,10 +77,42 @@ export class RaceHud {
     g.lineWidth = 5;
     path();
     g.stroke();
-    // start line tick
+    // Start/finish line: a chequered bar across the road plus a flag, so it stands out.
     const [sx, sy] = this.project(track.points[0].x, track.points[0].z);
-    g.fillStyle = '#ff6f91';
-    g.fillRect(sx - 4, sy - 4, 8, 8);
+    const [ax, ay] = this.project(track.points[3].x, track.points[3].z);
+    const dir = Math.atan2(ay - sy, ax - sx);
+    const cell = 4;
+    const checker = (cols: number, rows: number, x0: number, y0: number) => {
+      for (let i = 0; i < cols; i++)
+        for (let j = 0; j < rows; j++) {
+          g.fillStyle = (i + j) % 2 ? '#fff' : '#222';
+          g.fillRect(x0 + i * cell, y0 + j * cell, cell, cell);
+        }
+    };
+    g.save();
+    g.translate(sx, sy);
+    g.rotate(dir);
+    g.fillStyle = '#ffd84d';
+    g.fillRect(-cell - 2, -2.5 * cell - 2, cell * 2 + 4, cell * 5 + 4);
+    checker(2, 5, -cell, -2.5 * cell);
+    g.restore();
+    // Flag on a pole just off the road, on the side facing away from the map centre.
+    let nx = -Math.sin(dir);
+    let ny = Math.cos(dir);
+    if (nx * (sx - size / 2) + ny * (sy - size / 2) < 0) [nx, ny] = [-nx, -ny];
+    // The map is shown in a circle: if there's no room outside, put the flag on the inside.
+    if (Math.hypot(sx + nx * 22 - size / 2, sy + ny * 22 - size / 2) > size / 2 - 6) [nx, ny] = [-nx, -ny];
+    const px = sx + nx * 14 - cell * 1.5;
+    const py = sy + ny * 14 + 5;
+    g.strokeStyle = '#3a2e4f';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(px, py + 6);
+    g.lineTo(px, py - 16);
+    g.stroke();
+    checker(3, 2, px, py - 16);
+    g.lineWidth = 1;
+    g.strokeRect(px, py - 16, cell * 3, cell * 2);
   }
 
   update(race: RaceSession, player: Racer, standings: Racer[]): void {

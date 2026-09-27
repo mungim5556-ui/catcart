@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { ItemKind } from '../items/items';
+import { buildAccessory } from './accessories';
 import { mergeStatic } from '../world/mergeStatic';
 import type { KartPhysics } from './kartPhysics';
 
@@ -23,45 +25,88 @@ export interface AiTraits {
   rocketChance: number; // chance of a rocket start
 }
 
+/** Each cat's special ability (applies whether you or the computer drives it). */
+export interface Ability {
+  icon: string;
+  name: string;
+  desc: string;
+  /** Multiplies the roulette odds of these items. */
+  itemBias?: Partial<Record<ItemKind, number>>;
+  /** Seconds the item roulette spins (default 1.2). */
+  rouletteTime?: number;
+  /** Multiplies drift mini-turbo length. */
+  driftBoost?: number;
+  /** Multiplies 📦 shield duration. */
+  shield?: number;
+  /** Multiplies how long a hit spins you out. */
+  spin?: number;
+}
+
 export interface CatCharacter {
   name: string;
   trait: string;
   style: CatStyle;
   ai: AiTraits;
+  ability: Ability;
+  /** What this cat wears when the computer drives it. */
+  signature: string;
 }
 
 /** Every selectable cat. Whoever the player doesn't pick races as AI. */
 export const ROSTER: CatCharacter[] = [
-  { name: '치즈', trait: '호기심 많은 치즈냥', style: GINGER, ai: { pace: 0.935, driftSkill: 0.55, rocketChance: 0.35 } },
+  {
+    name: '치즈',
+    trait: '호기심 많은 치즈냥',
+    style: GINGER,
+    ai: { pace: 0.935, driftSkill: 0.55, rocketChance: 0.35 },
+    ability: { icon: '🐟', name: '생선 러버', desc: '🐟 생선 아이템이 2배 잘 나와요', itemBias: { fish: 2, fish3: 2 } },
+    signature: 'strawhat',
+  },
   {
     name: '까망이',
     trait: '밤을 달리는 검은 번개',
     style: { kart: 0x7a5cff, kartTrim: 0xffe066, fur: 0x2f2b36, furLight: 0x6d6778 },
     ai: { pace: 0.94, driftSkill: 0.6, rocketChance: 0.4 },
+    ability: { icon: '⚡', name: '검은 번개', desc: '드리프트 부스트가 30% 더 길어요', driftBoost: 1.3 },
+    signature: 'sunglasses',
   },
   {
     name: '설기',
     trait: '새하얀 모범생',
     style: { kart: 0x4fc3ff, kartTrim: 0xffffff, fur: 0xf7f4ee, furLight: 0xffffff },
     ai: { pace: 0.95, driftSkill: 0.7, rocketChance: 0.4 },
+    ability: { icon: '📦', name: '철벽 모범생', desc: '📦 상자 방패가 2배 잘 나오고 1.5배 오래 가요', itemBias: { box: 2 }, shield: 1.5 },
+    signature: 'ribbon',
   },
   {
     name: '고등어',
     trait: '느긋한 줄무늬 대장',
     style: { kart: 0x52c77a, kartTrim: 0xffffff, fur: 0x8f929c, furLight: 0xd9dbe0 },
     ai: { pace: 0.94, driftSkill: 0.6, rocketChance: 0.35 },
+    ability: { icon: '🧶', name: '털실 장인', desc: '🧶 털실 · 🐭 태엽 쥐가 2배 잘 나와요', itemBias: { yarn: 2, mouse: 2 } },
+    signature: 'cap',
   },
   {
     name: '삼색이',
     trait: '행운을 부르는 삼색냥',
     style: { kart: 0xffb300, kartTrim: 0x3a2e4f, fur: 0xe07b39, furLight: 0xffffff },
     ai: { pace: 0.93, driftSkill: 0.45, rocketChance: 0.3 },
+    ability: {
+      icon: '🍀',
+      name: '행운의 삼색',
+      desc: '룰렛이 2배 빨리 멈추고 🌿 캣닢 · 💦 목욕이 더 잘 나와요',
+      rouletteTime: 0.6,
+      itemBias: { catnip: 1.8, bath: 1.8 },
+    },
+    signature: 'flowers',
   },
   {
     name: '샴',
     trait: '도도한 파란 눈의 귀족',
     style: { kart: 0xff5a6e, kartTrim: 0xfff1dc, fur: 0xe9dcc4, furLight: 0x6b4f3f },
     ai: { pace: 0.915, driftSkill: 0.3, rocketChance: 0.2 },
+    ability: { icon: '👑', name: '귀족의 여유', desc: '맞아도 금방 정신 차려요 (스핀 시간 40% 짧게)', spin: 0.6 },
+    signature: 'crown',
   },
 ];
 
@@ -237,6 +282,13 @@ export class CatKart {
     mergeStatic(this.headGroup);
     this.tail.userData.dynamic = false;
     mergeStatic(this.tail);
+  }
+
+  /** Puts on an accessory (or takes it off with 'none'). */
+  setAccessory(id: string): void {
+    this.headGroup.getObjectByName('accessory')?.removeFromParent();
+    const acc = buildAccessory(id);
+    if (acc) this.headGroup.add(acc);
   }
 
   /** Frees GPU resources when this model is swapped out. */

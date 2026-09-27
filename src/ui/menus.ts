@@ -1,4 +1,5 @@
 import type { CatCharacter } from '../kart/catKart';
+import { ACCESSORIES } from '../kart/accessories';
 import { CUPS, TRACKS } from '../world/trackDefs';
 import { loadRecords, formatTime } from '../race/raceSession';
 import { trackPreview } from './trackPreview';
@@ -22,12 +23,12 @@ export type Screen = 'title' | 'controls' | 'select' | 'track' | 'pause' | 'none
 export type RaceMode = 'single' | 'cup';
 
 export interface MenuHandlers {
-  /** Cat highlighted on the select screen changed (live preview). */
-  onPreview(catIndex: number): void;
+  /** Cat or accessory highlighted on the select screen changed (live preview). */
+  onPreview(catIndex: number, accessory: string): void;
   /** Track highlighted on the track screen changed (backdrop preview). */
   onPreviewTrack(trackIndex: number): void;
   /** Single race on `trackIndex`, or a cup (which starts on track 0). */
-  onStart(catIndex: number, difficulty: Difficulty, mode: RaceMode, trackIndex: number, cupIndex: number): void;
+  onStart(catIndex: number, accessory: string, difficulty: Difficulty, mode: RaceMode, trackIndex: number, cupIndex: number): void;
   onResume(): void;
   onRestart(): void;
   onQuit(): void;
@@ -48,12 +49,12 @@ export interface MenuHandlers {
 const PREFS_KEY = 'catcart.prefs.v1';
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
-function loadPrefs(): { cat: number; diff: number; track: number } {
+function loadPrefs(): { cat: number; diff: number; track: number; acc: number } {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
-    return { cat: p.cat ?? 0, diff: p.diff ?? 1, track: p.track ?? 0 };
+    return { cat: p.cat ?? 0, diff: p.diff ?? 1, track: p.track ?? 0, acc: p.acc ?? 0 };
   } catch {
-    return { cat: 0, diff: 1, track: 0 };
+    return { cat: 0, diff: 1, track: 0, acc: 0 };
   }
 }
 
@@ -63,6 +64,8 @@ export class Menus {
   cat: number;
   diff: number;
   track: number;
+  /** Index into ACCESSORIES. */
+  acc: number;
   mode: RaceMode = 'single';
   cupIndex = 0;
   private root = document.getElementById('menus')!;
@@ -76,6 +79,7 @@ export class Menus {
     this.cat = Math.min(prefs.cat, roster.length - 1);
     this.diff = Math.min(prefs.diff, DIFFICULTIES.length - 1);
     this.track = Math.min(prefs.track, TRACKS.length - 1);
+    this.acc = Math.min(prefs.acc, ACCESSORIES.length - 1);
     this.root.addEventListener('click', (e) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
       if (el) this.act(el.dataset.action!);
@@ -88,11 +92,15 @@ export class Menus {
     this.render();
   }
 
+  get accessoryId(): string {
+    return ACCESSORIES[this.acc].id;
+  }
+
   /** Keyboard navigation. Returns true if the key was used. */
   key(code: string): boolean {
     if (this.screen === 'none') return false;
     const buttons = this.buttons();
-    const before = `${this.focus}/${this.cat}/${this.diff}/${this.track}`;
+    const before = `${this.focus}/${this.cat}/${this.diff}/${this.track}/${this.acc}`;
     switch (code) {
       case 'ArrowUp':
       case 'KeyW':
@@ -116,6 +124,11 @@ export class Menus {
         if (this.screen === 'select') this.setCat(this.cat + 1);
         else if (this.screen === 'track') this.setTrack(this.track + 1);
         break;
+      case 'KeyQ':
+      case 'KeyE':
+        if (this.screen !== 'select') return false;
+        this.setAcc(this.acc + (code === 'KeyE' ? 1 : -1));
+        break;
       case 'Enter':
       case 'NumpadEnter':
       case 'Space':
@@ -131,7 +144,7 @@ export class Menus {
       default:
         return false;
     }
-    if (`${this.focus}/${this.cat}/${this.diff}/${this.track}` !== before) this.h.onSound('move');
+    if (`${this.focus}/${this.cat}/${this.diff}/${this.track}/${this.acc}` !== before) this.h.onSound('move');
     this.render();
     return true;
   }
@@ -184,7 +197,7 @@ export class Menus {
         return this.act('select');
       case 'select':
         this.show('select');
-        this.h.onPreview(this.cat);
+        this.h.onPreview(this.cat, this.accessoryId);
         return;
       case 'next':
         // Cup: straight to the race; single race: pick a track first.
@@ -199,10 +212,14 @@ export class Menus {
         return this.act(this.screen === 'track' ? 'select' : 'title');
       case 'nextCat':
         return this.setCat(this.cat + 1);
+      case 'accPrev':
+        return this.setAcc(this.acc - 1);
+      case 'accNext':
+        return this.setAcc(this.acc + 1);
       case 'start':
         this.savePrefs();
         this.show('none');
-        return this.h.onStart(this.cat, DIFFICULTIES[this.diff], this.mode, this.track, this.cupIndex);
+        return this.h.onStart(this.cat, this.accessoryId, DIFFICULTIES[this.diff], this.mode, this.track, this.cupIndex);
       case 'resume':
         this.show('none');
         return this.h.onResume();
@@ -246,7 +263,14 @@ export class Menus {
   private setCat(i: number): void {
     const n = this.roster.length;
     this.cat = (i + n) % n;
-    this.h.onPreview(this.cat);
+    this.h.onPreview(this.cat, this.accessoryId);
+    this.render();
+  }
+
+  private setAcc(i: number): void {
+    const n = ACCESSORIES.length;
+    this.acc = (i + n) % n;
+    this.h.onPreview(this.cat, this.accessoryId);
     this.render();
   }
 
@@ -264,7 +288,7 @@ export class Menus {
 
   private savePrefs(): void {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ cat: this.cat, diff: this.diff, track: this.track }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ cat: this.cat, diff: this.diff, track: this.track, acc: this.acc }));
     } catch {
       /* ignore */
     }
@@ -315,6 +339,7 @@ export class Menus {
         return;
       case 'select': {
         const c = this.roster[this.cat];
+        const a = ACCESSORIES[this.acc];
         const dots = this.roster
           .map((r, i) => `<button data-action="cat:${i}" class="dot ${i === this.cat ? 'on' : ''}" style="background:${hex(r.style.kart)}" aria-label="${r.name}"></button>`)
           .join('');
@@ -330,13 +355,19 @@ export class Menus {
               <div class="cat-name">
                 <div class="name" style="color:${hex(c.style.kart)}">${c.name}</div>
                 <div class="trait">${c.trait}</div>
+                <div class="ability">${c.ability.icon} <b>${c.ability.name}</b> · ${c.ability.desc}</div>
                 <div class="dots">${dots}</div>
               </div>
               <button data-action="nextCat" class="arrow" aria-label="다음">▶</button>
             </div>
+            <div class="acc-pick">
+              <button data-action="accPrev" class="arrow small" aria-label="이전 액세서리">◀</button>
+              <div class="acc-name">${a.icon} ${a.name}<small>액세서리 ${this.acc + 1}/${ACCESSORIES.length}</small></div>
+              <button data-action="accNext" class="arrow small" aria-label="다음 액세서리">▶</button>
+            </div>
             <div class="diff">${diffs}</div>
             <button data-action="next" class="go">${this.mode === 'cup' ? `${CUPS[this.cupIndex].name} 출발! ${CUPS[this.cupIndex].emoji}` : '트랙 고르기 ▶'}</button>
-            <p class="hint"><kbd>←</kbd><kbd>→</kbd> 고양이 · <kbd>↑</kbd><kbd>↓</kbd> 난이도 · <kbd>Enter</kbd> 다음 · <kbd>Esc</kbd> 뒤로</p>
+            <p class="hint"><kbd>←</kbd><kbd>→</kbd> 고양이 · <kbd>Q</kbd><kbd>E</kbd> 액세서리 · <kbd>↑</kbd><kbd>↓</kbd> 난이도 · <kbd>Enter</kbd> 다음 · <kbd>Esc</kbd> 뒤로</p>
           </div>`;
         return;
       }

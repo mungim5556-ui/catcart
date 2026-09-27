@@ -81,14 +81,17 @@ function cupTracks(): number[] {
 }
 
 /** Player becomes `catIndex`; everyone else in the roster races as AI. */
-function assignCats(catIndex: number): void {
+function assignCats(catIndex: number, accessory = 'none'): void {
   player.setCharacter(ROSTER[catIndex]);
+  player.setAccessory(accessory);
   const others = ROSTER.filter((_, i) => i !== catIndex);
   // Same field whoever you pick: the rivals always get the strongest AI profiles, handed out in
   // their own pecking order, so picking a fast cat doesn't leave you racing a weaker pack.
   const profiles = ROSTER.map((c) => c.ai).sort((a, b) => b.pace - a.pace);
   const ranked = [...others].sort((a, b) => b.ai.pace - a.ai.pace);
   ranked.forEach((c, rank) => rivals[others.indexOf(c)].setCharacter({ ...c, ai: profiles[rank] }));
+  // Rivals wear their signature accessory.
+  others.forEach((c, i) => rivals[i].setAccessory(c.signature));
 }
 
 let items = new ItemSystem(track);
@@ -168,14 +171,14 @@ let mode: Mode = 'title';
 let menuTime = 0;
 
 const menus = new Menus(ROSTER, {
-  onPreview: (i) => assignCats(i),
+  onPreview: (i, acc) => assignCats(i, acc),
   onPreviewTrack: (i) => {
     loadTrack(i);
     placeOnGrid();
   },
-  onStart: (i, d, mode, t, c) => {
+  onStart: (i, acc, d, mode, t, c) => {
     if (touch.active) enterMobileRace();
-    assignCats(i);
+    assignCats(i, acc);
     difficulty = d;
     if (mode === 'cup') startCup(c);
     else {
@@ -212,7 +215,7 @@ function goToTitle(): void {
   loadTrack(menus.track);
   raceHud.hideResults();
   items.clear();
-  assignCats(menus.cat);
+  assignCats(menus.cat, menus.accessoryId);
   placeOnGrid();
   menus.show('title');
   input.clearPresses();
@@ -336,7 +339,7 @@ function startCeremony(): void {
   track.group.visible = items.group.visible = trackHazards.group.visible = skids.mesh.visible = false;
   for (const r of racers) r.root.visible = false;
   const top = view.table.slice(0, 3);
-  ceremony.start(top.map((row) => row.racer.style));
+  ceremony.start(top.map((row) => ({ style: row.racer.style, accessory: row.racer.accessory })));
   const place = view.table.findIndex((row) => row.racer === player) + 1;
   const medal = ['🥇', '🥈', '🥉'];
   const cupDef = CUPS[cup!.cup];

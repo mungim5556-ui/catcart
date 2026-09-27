@@ -99,6 +99,10 @@ export class KartPhysics {
   trickTime = 0;
   /** Per-kart speed scale (AI skill, catch-up); 1 = normal. */
   speedMul = 1;
+  /** Character ability tweaks (1 = normal). */
+  mods = { driftBoost: 1, shield: 1, spin: 1 };
+  /** Length of the current spin-out. */
+  private spinTotal: number = KART.spinDuration;
 
   /** Set for one step when something visual should react. */
   events: StepEvents = { landed: 0, hit: false, boost: null, hop: false };
@@ -150,8 +154,9 @@ export class KartPhysics {
       this.events.blocked = true;
       return false;
     }
-    this.spinTime = KART.spinDuration;
-    this.invulnTime = KART.spinDuration + KART.hitInvuln;
+    this.spinTotal = KART.spinDuration * this.mods.spin;
+    this.spinTime = this.spinTotal;
+    this.invulnTime = this.spinTotal + KART.hitInvuln;
     this.vel.x *= 0.25;
     this.vel.z *= 0.25;
     this.drifting = false;
@@ -170,7 +175,7 @@ export class KartPhysics {
   }
 
   shield(): void {
-    this.shieldTime = KART.shieldDuration;
+    this.shieldTime = KART.shieldDuration * this.mods.shield;
   }
 
   catnip(): void {
@@ -185,7 +190,7 @@ export class KartPhysics {
 
   /** 0..1 progress through the current spin-out (0 when not spinning). */
   get spinProgress(): number {
-    return this.spinTime > 0 ? 1 - this.spinTime / KART.spinDuration : 0;
+    return this.spinTime > 0 ? 1 - this.spinTime / this.spinTotal : 0;
   }
 
   step(dt: number, input: KartInput, world: KartWorld): void {
@@ -275,7 +280,7 @@ export class KartPhysics {
       if (!input.drift || fs < KART.driftMinSpeed * 0.6) {
         const level = this.driftLevel;
         this.drifting = false;
-        if (level > 0) this.addBoost(KART.driftBoost[level], level);
+        if (level > 0) this.addBoost(KART.driftBoost[level] * this.mods.driftBoost, level);
       } else if (this.grounded) {
         // Actively steering (either way) charges faster than holding neutral.
         this.driftCharge += dt * (1 + 0.5 * Math.abs(input.steer));

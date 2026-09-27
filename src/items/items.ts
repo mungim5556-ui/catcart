@@ -57,11 +57,12 @@ const ODDS: Record<ItemKind, [number, number, number]> = {
   bath: [0, 3, 15],
 };
 
-function rollItem(place: number, total: number): ItemKind {
+function rollItem(place: number, total: number, bias: Partial<Record<ItemKind, number>> = {}): ItemKind {
   const t = total > 1 ? (place - 1) / (total - 1) : 0; // 0 = leader, 1 = last
   const [a, b, u] = t < 0.5 ? [0, 1, t * 2] : [1, 2, (t - 0.5) * 2];
   const kinds = Object.keys(ODDS) as ItemKind[];
-  const weights = kinds.map((k) => ODDS[k][a] + (ODDS[k][b] - ODDS[k][a]) * u);
+  // A cat's ability favours some items (never ones its position can't get at all).
+  const weights = kinds.map((k) => (ODDS[k][a] + (ODDS[k][b] - ODDS[k][a]) * u) * (bias[k] ?? 1));
   let r = Math.random() * weights.reduce((x, y) => x + y, 0);
   for (let i = 0; i < kinds.length; i++) if ((r -= weights[i]) <= 0) return kinds[i];
   return 'fish';
@@ -370,7 +371,7 @@ export class ItemSystem {
         if ((p.x - b.pos.x) ** 2 + (p.z - b.pos.z) ** 2 > 2.2 * 2.2) continue;
         b.respawn = BOX_RESPAWN;
         b.mesh.visible = false;
-        if (!r.item && r.roulette <= 0) r.roulette = ROULETTE_TIME;
+        if (!r.item && r.roulette <= 0) r.roulette = r.ability.rouletteTime ?? ROULETTE_TIME;
         break;
       }
     }
@@ -380,7 +381,7 @@ export class ItemSystem {
       if (r.roulette > 0) {
         r.roulette -= dt;
         if (r.roulette <= 0) {
-          r.item = rollItem(standings.indexOf(r) + 1, standings.length);
+          r.item = rollItem(standings.indexOf(r) + 1, standings.length, r.ability.itemBias);
           r.itemUses = r.item === 'fish3' ? 3 : 1;
           r.itemHold = 0;
           events.push({ type: 'got', racer: r, item: r.item });

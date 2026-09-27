@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { AiDriver } from '../ai/aiDriver';
-import { CatKart, type CatCharacter, type CatStyle } from '../kart/catKart';
+import { CatKart, type Ability, type CatCharacter, type CatStyle } from '../kart/catKart';
 import { KartPhysics } from '../kart/kartPhysics';
 import type { KartInput } from '../core/input';
 import type { Track } from '../world/track';
@@ -22,6 +22,9 @@ export class Racer implements ItemHolder {
   /** Base pace for AI (difficulty/personality); catch-up is applied on top. */
   pace = 1;
   rocketChance = 0;
+  ability!: Ability;
+  /** What this racer wears ('none' for nothing). */
+  accessory = 'none';
   finishTime: number | null = null;
   item: ItemKind | null = null;
   itemUses = 0;
@@ -61,10 +64,18 @@ export class Racer implements ItemHolder {
       this.model = new CatKart(c.style);
       this.root.add(this.model.root);
       this.style = c.style;
+      this.model.setAccessory(this.accessory);
     }
+    this.ability = c.ability;
+    this.physics.mods = { driftBoost: c.ability.driftBoost ?? 1, shield: c.ability.shield ?? 1, spin: c.ability.spin ?? 1 };
     this.pace = c.ai.pace;
     this.rocketChance = c.ai.rocketChance;
     if (!this.isPlayer) this.ai.profile.driftSkill = c.ai.driftSkill;
+  }
+
+  setAccessory(id: string): void {
+    this.accessory = id;
+    this.model.setAccessory(id);
   }
 
   place(pose: { pos: THREE.Vector3; yaw: number }): void {

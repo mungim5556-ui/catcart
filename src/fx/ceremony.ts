@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildAccessory } from '../kart/accessories';
 import type { CatStyle } from '../kart/catKart';
 
 const mat = (color: number, extra: THREE.MeshStandardMaterialParameters = {}) =>
@@ -18,7 +19,7 @@ class StandingCat {
   private head = new THREE.Group();
   private tail = new THREE.Group();
 
-  constructor(style: CatStyle, trophy: boolean) {
+  constructor(style: CatStyle, trophy: boolean, accessory = 'none') {
     const fur = mat(style.fur);
     const light = mat(style.furLight);
     const pink = mat(0xff9eb5);
@@ -64,6 +65,12 @@ class StandingCat {
     band.rotation.x = Math.PI / 2;
     band.scale.set(1.12, 1, 1);
     h.add(band);
+    // Same accessory as in the race (this head is a touch bigger than the kart driver's).
+    const acc = buildAccessory(accessory);
+    if (acc) {
+      acc.scale.setScalar(1.1);
+      h.add(acc);
+    }
     this.root.add(h);
 
     // Waving right arm (pivots at the shoulder).
@@ -147,7 +154,7 @@ export class Ceremony {
   private cats: { cat: StandingCat; place: number }[] = [];
   private time = 0;
 
-  start(top3: CatStyle[]): void {
+  start(top3: { style: CatStyle; accessory: string }[]): void {
     this.stop();
     this.time = 0;
     const g = this.group;
@@ -166,9 +173,9 @@ export class Ceremony {
       const plate = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), new THREE.MeshBasicMaterial({ map: numberTexture(s.place, s.css) }));
       plate.position.set(s.x, 0.5 + s.h / 2, 1.51);
       g.add(plate);
-      const style = top3[i];
-      if (!style) return;
-      const cat = new StandingCat(style, s.place === 1);
+      const who = top3[i];
+      if (!who) return;
+      const cat = new StandingCat(who.style, s.place === 1, who.accessory);
       const base = new THREE.Group();
       base.position.set(s.x, 0.5 + s.h, 0);
       base.add(cat.root);
