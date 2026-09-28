@@ -211,7 +211,7 @@ export const TRACKS: TrackDef[] = [
     pads: [0.03, 0.15, 0.5, 0.75],
     ramps: [[0.56, 1.6], [0.95, 1.4]],
     boxRows: [0.1, 0.38, 0.66, 0.84],
-    hazards: { vacuum: [0.22, 0.61], steam: [0.45, 0.89] },
+    hazards: { trashcan: [0.22, 0.61], steam: [0.45, 0.89] },
     seed: 21,
     theme: {
       offroad: { label: '🚧 인도 — 감속!', badge: 'rgba(60,50,90,.85)', dust: 0x8a8698 },

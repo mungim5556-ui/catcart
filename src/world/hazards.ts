@@ -18,7 +18,7 @@ export type HazardKind =
   | 'beachball'
   | 'snowball'
   | 'penguin'
-  | 'vacuum'
+  | 'trashcan'
   | 'steam'
   | 'hedgehog'
   | 'mushroom'
@@ -35,7 +35,7 @@ export const HAZARD_INFO: Record<HazardKind, { ouch: string; colors: [number, nu
   beachball: { ouch: '🏐 비치볼에 퉁!', colors: [0xffd84d, 0x4fc3ff] },
   snowball: { ouch: '☃️ 눈덩이에 쾅!', colors: [0xffffff, 0xcfe8ff] },
   penguin: { ouch: '🐧 펭귄이랑 꽈당!', colors: [0x2b2d42, 0xffffff] },
-  vacuum: { ouch: '🤖 청소기다! 으악!', colors: [0xffffff, 0x9aa3b5] },
+  trashcan: { ouch: '🗑️ 쓰레기통에 쾅!', colors: [0x5f8f5a, 0xfff4d6] },
   steam: { ouch: '♨️ 뜨거운 김! 앗뜨!', colors: [0xffffff, 0xd0d6e0] },
   hedgehog: { ouch: '🦔 고슴도치 따끔!', colors: [0x8a5a3a, 0xf3d9b1] },
   mushroom: { ouch: '🍄 포자 뿜뿜! 에취!', colors: [0xc8f06a, 0xfff6a0] },
@@ -113,25 +113,47 @@ const eyes = (g: THREE.Group, y: number, z: number, spread: number, size = 0.16)
 
 // ---------- meshes ----------
 
-function vacuumMesh(): THREE.Group {
+function trashcanMesh(): THREE.Group {
   const g = new THREE.Group();
-  g.add(m(new THREE.CylinderGeometry(1.8, 1.8, 0.7, 18), mat(0xff7aa2), 0, 0.45));
-  g.add(m(new THREE.CylinderGeometry(1.88, 1.88, 0.3, 18, 1, true, -1.3, 2.6), mat(0x3a3d4a), 0, 0.4));
-  g.add(m(new THREE.CylinderGeometry(1.2, 1.3, 0.14, 16), mat(0xfff4f8), 0, 0.86));
-  g.add(live(m(new THREE.SphereGeometry(0.2, 8, 6), glow(0x49e27a), 0, 0.95, -0.55), 'blink'));
-  eyes(g, 0.62, 1.72, 0.55, 0.28);
-  for (const side of [-1, 1]) {
-    const brush = live(new THREE.Group(), 'spin');
-    for (let i = 0; i < 3; i++) {
-      const arm = new THREE.Group();
-      arm.rotation.y = (i / 3) * Math.PI * 2;
-      arm.add(m(new THREE.BoxGeometry(0.08, 0.04, 0.75), mat(0x9aa3b5), 0, 0, 0.35));
-      brush.add(arm);
-    }
-    brush.position.set(side * 1.1, 0.1, 1.2);
-    g.add(brush);
+  // Everything hops together; the lid clatters on its own hinge.
+  const bin = live(new THREE.Group(), 'bin');
+  const green = mat(0x5f8f5a, { metalness: 0.3, roughness: 0.5 });
+  const dark = mat(0x436b40, { metalness: 0.3, roughness: 0.5 });
+  bin.add(m(new THREE.CylinderGeometry(1.08, 0.92, 1.8, 14), green, 0, 0.9, 0));
+  for (const y of [0.45, 1.25]) {
+    const ring = m(new THREE.TorusGeometry(1.0 + y * 0.05, 0.06, 4, 18), dark, 0, y, 0);
+    ring.rotation.x = Math.PI / 2;
+    bin.add(ring);
   }
-  return compact(g);
+  const rim = m(new THREE.TorusGeometry(1.08, 0.08, 4, 18), dark, 0, 1.8, 0);
+  rim.rotation.x = Math.PI / 2;
+  bin.add(rim);
+  bin.add(m(new THREE.CylinderGeometry(0.98, 0.98, 0.04, 14), mat(0x15151c), 0, 1.76, 0)); // dark inside
+  // Glowing eyes peeking out from under the lid.
+  for (const s of [-1, 1]) bin.add(m(new THREE.SphereGeometry(0.14, 8, 6), glow(0xffe066), s * 0.32, 1.9, 0.62));
+  for (const s of [-1, 1]) bin.add(m(new THREE.BoxGeometry(0.16, 0.34, 0.12), dark, s * 1.08, 1.3, 0)); // handles
+  // Rubbish poking out: a fish bone and a crumpled paper ball.
+  const bone = m(new THREE.BoxGeometry(0.06, 0.7, 0.06), mat(0xfff4d6), -0.55, 2.05, -0.3);
+  bone.rotation.z = 0.5;
+  bin.add(bone);
+  for (const y of [-0.15, 0, 0.15]) {
+    const rib = m(new THREE.BoxGeometry(0.3, 0.04, 0.04), mat(0xfff4d6), -0.55 - y * 0.5, 2.05 + y, -0.3);
+    rib.rotation.z = 0.5;
+    bin.add(rib);
+  }
+  bin.add(m(new THREE.IcosahedronGeometry(0.24, 0), mat(0xf2f2f2), 0.5, 1.95, -0.35));
+  // Lid, hinged at the back.
+  const lid = live(new THREE.Group(), 'lid');
+  lid.position.set(0, 1.86, -1.05);
+  lid.add(m(new THREE.CylinderGeometry(1.14, 1.14, 0.14, 16), green, 0, 0.05, 1.05));
+  lid.add(m(new THREE.CylinderGeometry(0.5, 1.1, 0.25, 16), green, 0, 0.24, 1.05));
+  lid.add(m(new THREE.BoxGeometry(0.6, 0.12, 0.16), dark, 0, 0.42, 1.05));
+  bin.add(lid);
+  // Fewer draw calls: merge each part's pieces (the lid stays separate so it can flap).
+  mergeStatic(lid);
+  mergeStatic(bin);
+  g.add(bin);
+  return g;
 }
 
 function crabMesh(): THREE.Group {
@@ -438,7 +460,7 @@ export class TrackHazards {
   private spawn(kind: HazardKind, fr: Frame, n: number): void {
     const rand = this.rand;
     switch (kind) {
-      case 'vacuum':
+      case 'trashcan':
       case 'crab':
       case 'snowball':
       case 'hedgehog':
@@ -463,22 +485,22 @@ export class TrackHazards {
   }
 
   /** Crosses the road from kerb to kerb, pausing briefly at each side. */
-  private sweeper(kind: 'vacuum' | 'crab' | 'snowball' | 'hedgehog', fr: Frame, n: number): void {
-    const obj = kind === 'vacuum' ? vacuumMesh() : kind === 'crab' ? crabMesh() : kind === 'snowball' ? snowballMesh() : hedgehogMesh();
-    const radius = { vacuum: 1.8, crab: 1.6, snowball: 1.9, hedgehog: 1.4 }[kind];
-    const speed = { vacuum: 0.6, crab: 0.8, snowball: 0.5, hedgehog: 0.65 }[kind] * (0.9 + this.rand() * 0.25);
+  private sweeper(kind: 'trashcan' | 'crab' | 'snowball' | 'hedgehog', fr: Frame, n: number): void {
+    const obj = kind === 'trashcan' ? trashcanMesh() : kind === 'crab' ? crabMesh() : kind === 'snowball' ? snowballMesh() : hedgehogMesh();
+    const radius = { trashcan: 1.3, crab: 1.6, snowball: 1.9, hedgehog: 1.4 }[kind];
+    const speed = { trashcan: 0.6, crab: 0.8, snowball: 0.5, hedgehog: 0.65 }[kind] * (0.9 + this.rand() * 0.25);
     const phase = n * 2.1 + this.rand() * 3;
     const roll = obj.getObjectByName('roll');
-    const spin = obj.children.filter((c) => c.name === 'spin');
     const claws = obj.children.filter((c) => c.name === 'claw');
-    const blink = obj.getObjectByName('blink');
+    const bin = obj.getObjectByName('bin');
+    const lid = obj.getObjectByName('lid');
     const axis = new THREE.Vector3(fr.f.x, 0, fr.f.z);
     let lastLat = 0;
     let dir = 1;
     const h: Hazard = {
       kind, obj, radius, height: kind === 'snowball' ? 3.8 : 2,
       pos: new THREE.Vector3(), threat: true,
-      update: (time, dt) => {
+      update: (time) => {
         const lat = SWEEP * Math.max(-1, Math.min(1, Math.sin(time * speed + phase) * 1.25));
         if (Math.abs(lat - lastLat) > 1e-4) dir = Math.sign(lat - lastLat);
         lastLat = lat;
@@ -497,8 +519,15 @@ export class TrackHazards {
           obj.rotation.y = across;
           if (kind === 'hedgehog') obj.position.y = Math.abs(Math.sin(time * 10)) * 0.15;
         }
-        for (const c of spin) c.rotation.y += dt * 14;
-        if (blink) blink.visible = Math.sin(time * 6) > -0.3;
+        if (bin && lid) {
+          // Hop, hop: squash on landing, wobble side to side, lid clattering open and shut.
+          const hop = Math.abs(Math.sin(time * 5 + phase));
+          bin.position.y = hop * 0.7;
+          const squash = Math.max(0, 0.25 - hop) * 0.8;
+          bin.scale.set(1 + squash, 1 - squash, 1 + squash);
+          bin.rotation.z = Math.sin(time * 5 + phase) * 0.12;
+          lid.rotation.x = -(0.15 + 0.45 * Math.abs(Math.sin(time * 5 + phase + 0.7)));
+        }
       },
     };
     this.add(h);
