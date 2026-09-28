@@ -1,0 +1,75 @@
+<!-- CatCart app icon artwork (1024×1024, full bleed). Low-poly ginger racer cat, like the in-game driver. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8fd8ff"/>
+      <stop offset="0.55" stop-color="#b59cff"/>
+      <stop offset="1" stop-color="#ff7aa8"/>
+    </linearGradient>
+    <pattern id="check" width="64" height="64" patternUnits="userSpaceOnUse">
+      <rect width="64" height="64" fill="#fff"/>
+      <rect width="32" height="32" fill="#2b2d42"/>
+      <rect x="32" y="32" width="32" height="32" fill="#2b2d42"/>
+    </pattern>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- speed lines -->
+  <g stroke="#fff" stroke-linecap="round" opacity="0.55">
+    <line x1="60" y1="330" x2="230" y2="330" stroke-width="22"/>
+    <line x1="30" y1="420" x2="190" y2="420" stroke-width="16"/>
+    <line x1="80" y1="760" x2="250" y2="760" stroke-width="18"/>
+    <line x1="820" y1="300" x2="980" y2="300" stroke-width="16"/>
+    <line x1="850" y1="780" x2="1000" y2="780" stroke-width="22"/>
+  </g>
+  <!-- chequered finish strip -->
+  <rect x="0" y="896" width="1024" height="128" fill="url(#check)"/>
+
+  <!-- ears -->
+  <polygon points="262,420 318,138 470,330" fill="#e8923a"/>
+  <polygon points="318,138 470,330 380,330" fill="#f4a340"/>
+  <polygon points="300,380 330,215 420,330" fill="#ff9eb5"/>
+  <polygon points="762,420 706,138 554,330" fill="#e8923a"/>
+  <polygon points="706,138 554,330 644,330" fill="#f4a340"/>
+  <polygon points="724,380 694,215 604,330" fill="#ff9eb5"/>
+
+  <!-- head: faceted like the low-poly model -->
+  <g stroke="#e08a34" stroke-width="2" stroke-linejoin="round">
+    <polygon points="512,290 300,330 512,560" fill="#f7b25a"/>
+    <polygon points="512,290 724,330 512,560" fill="#f4a340"/>
+    <polygon points="300,330 208,520 512,560" fill="#ec9a3f"/>
+    <polygon points="724,330 816,520 512,560" fill="#e8923a"/>
+    <polygon points="208,520 262,730 512,560" fill="#f4a340"/>
+    <polygon points="816,520 762,730 512,560" fill="#ef9d42"/>
+    <polygon points="262,730 512,830 512,560" fill="#f7b25a"/>
+    <polygon points="762,730 512,830 512,560" fill="#ec9a3f"/>
+  </g>
+
+  <!-- racing band (the kart-coloured stripe the drivers wear) -->
+  <path d="M232 452 Q512 372 792 452 L800 500 Q512 420 224 500 Z" fill="#ff5a6e"/>
+  <path d="M228 476 Q512 396 796 476" fill="none" stroke="#fff1dc" stroke-width="8" opacity="0.9"/>
+
+  <!-- muzzle -->
+  <polygon points="418,640 512,600 606,640 626,718 512,778 398,718" fill="#fff1dc"/>
+  <polygon points="512,600 606,640 512,690" fill="#fff8ee"/>
+
+  <!-- eyes -->
+  <rect x="372" y="530" width="64" height="96" rx="30" fill="#2b2d42"/>
+  <rect x="588" y="530" width="64" height="96" rx="30" fill="#2b2d42"/>
+  <circle cx="416" cy="556" r="14" fill="#fff"/>
+  <circle cx="632" cy="556" r="14" fill="#fff"/>
+  <!-- blush -->
+  <ellipse cx="330" cy="660" rx="42" ry="22" fill="#ff7aa8" opacity="0.45"/>
+  <ellipse cx="694" cy="660" rx="42" ry="22" fill="#ff7aa8" opacity="0.45"/>
+
+  <!-- nose + mouth -->
+  <polygon points="478,640 546,640 512,678" fill="#ff7aa8"/>
+  <path d="M512 678 Q496 716 462 704 M512 678 Q528 716 562 704" fill="none" stroke="#2b2d42" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- whiskers -->
+  <g stroke="#fff" stroke-width="9" stroke-linecap="round">
+    <line x1="392" y1="668" x2="196" y2="632"/>
+    <line x1="392" y1="692" x2="190" y2="704"/>
+    <line x1="632" y1="668" x2="828" y2="632"/>
+    <line x1="632" y1="692" x2="834" y2="704"/>
+  </g>
+</svg>
