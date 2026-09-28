@@ -140,6 +140,10 @@ AI 성격(속도·드리프트·로켓 스타트)은 `src/kart/catKart.ts`의 `R
 - [x] 9단계: 트랙 3개 · 트랙 선택 · 냥냥컵(그랑프리) 모드
 - [x] 11단계: GitHub Pages 배포 (push하면 `.github/workflows/deploy.yml`이 자동으로 빌드·배포)
 
+## 🍎 맥 앱으로 만들기
+
+Xcode로 맥 앱을 만드는 방법은 [`macos/README.md`](macos/README.md)를 보세요.
+
 ## 새 트랙 추가하기
 
 1. `src/world/trackDefs.ts`의 `TRACKS`에 트랙을 하나 더 적습니다 (`points`는 도로 중심선의 점들).
