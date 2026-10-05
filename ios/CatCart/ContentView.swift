@@ -84,7 +84,7 @@ extension Permissions: WKScriptMessageHandler {
 
 /// Answers app://game/... requests with files from the `dist` folder in the app bundle.
 final class BundledFiles: NSObject, WKURLSchemeHandler {
-    private let root = Bundle.main.resourceURL!.appendingPathComponent("dist")
+    private let root = Bundle.main.resourceURL!.appendingPathComponent("dist").standardizedFileURL
     private let types = [
         "html": "text/html", "js": "text/javascript", "css": "text/css", "json": "application/json",
         "png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml",
@@ -94,8 +94,9 @@ final class BundledFiles: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else { return }
         let path = url.path.isEmpty || url.path == "/" ? "index.html" : String(url.path.dropFirst())
-        let file = root.appendingPathComponent(path)
-        guard file.path.hasPrefix(root.path), let data = try? Data(contentsOf: file) else {
+        // Resolve any "../" before checking, so a request can't reach outside the dist folder.
+        let file = root.appendingPathComponent(path).standardizedFileURL
+        guard file.path.hasPrefix(root.path + "/"), let data = try? Data(contentsOf: file) else {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
         }
