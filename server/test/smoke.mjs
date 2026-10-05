@@ -119,7 +119,7 @@ rB.sendJson({ type: 'ready', ready: true });
 await rA.wait((m) => m.type === 'state' && m.settings.fillAI && m.members.find((x) => x.id === B.user.id)?.ready);
 rA.sendJson({ type: 'start' });
 const start2 = await rB.wait((m) => m.type === 'start');
-ok(start2.slots.length === 6 && start2.slots.filter((s) => s.kind === 'ai').length === 4, 'AI fill: 2 humans + 4 computer cats');
+ok(start2.slots.length === 3 && start2.slots.filter((s) => s.kind === 'ai').length === 1, 'AI fill: 3 seats = 2 humans + 1 computer cat');
 ok(!start2.slots.filter((s) => s.kind === 'ai').some((s) => s.cat === 1), 'computer cats avoid cats humans picked');
 
 // Host leaves mid-race → B becomes host, back to lobby

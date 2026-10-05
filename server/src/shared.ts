@@ -11,9 +11,9 @@ export interface UserInfo {
 }
 
 export interface RoomSettings {
-  /** Human seats (2–6). */
+  /** Seats in the race, i.e. karts on the grid (2–6). */
   maxPlayers: number;
-  /** Fill the empty grid slots (up to 6 karts) with computer cats. */
+  /** Computer cats take the seats no friend joined. */
   fillAI: boolean;
   /** Track index (0–5). */
   track: number;

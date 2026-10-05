@@ -29,7 +29,6 @@ interface Saved {
 }
 
 const ROSTER_SIZE = 6;
-const GRID = 6;
 /** Rooms nobody joined within this long are dropped. */
 const ROOM_TTL = 30 * 60_000;
 /** Race traffic forwarded to everyone else in the room. */
@@ -195,7 +194,8 @@ export class Room extends DurableObject<Env> {
     if (s.settings.fillAI) {
       // Computer cats: cats nobody picked first, then repeats.
       const free = [...Array(ROSTER_SIZE).keys()].filter((c) => !humans.some((h) => h.cat === c));
-      for (let i = 0; slots.length < GRID; i++) slots.push({ kind: 'ai', cat: free.length ? free[i % free.length] : i % ROSTER_SIZE });
+      // The seat count is the number of karts: computers take the seats nobody joined.
+      for (let i = 0; slots.length < s.settings.maxPlayers; i++) slots.push({ kind: 'ai', cat: free.length ? free[i % free.length] : i % ROSTER_SIZE });
     }
     this.phase = 'race';
     this.broadcast({

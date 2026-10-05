@@ -636,7 +636,8 @@ export class Online {
       })
       .join('');
     const empty = Math.max(0, st.maxPlayers - r.members.length);
-    const ai = st.fillAI ? Math.max(0, 6 - r.members.length) : 0;
+    // Seats nobody joined go to computer cats (or stay empty for friends-only races).
+    const ai = st.fillAI ? empty : 0;
     const online = this.lists.friends.filter((f) => f.online && !r.members.some((m) => m.id === f.id));
     const inviteList = online.length
       ? online.map((f) => `<li><span><i class="dot on"></i>${esc(f.nickname)}</span><button data-a="invite" data-v="${esc(f.nickname)}">초대</button></li>`).join('')
@@ -648,8 +649,8 @@ export class Online {
     const pickAcc = ACCESSORIES.find((a) => a.id === this.pick.accessory) ?? ACCESSORIES[0];
     return `<h2>🏁 레이스 방 <span class="ol-code">${esc(r.code)}</span></h2>
       <h3>참가자 (${r.members.length}/${st.maxPlayers})</h3>
-      <ul class="ol-list seats">${seats}${'<li class="empty">빈 자리</li>'.repeat(empty)}</ul>
-      ${ai ? `<p class="ol-small">🤖 컴퓨터 고양이 ${ai}명이 함께 달려요</p>` : ''}
+      <ul class="ol-list seats">${seats}${(st.fillAI ? '<li class="empty">🤖 컴퓨터 고양이 (친구가 들어오면 바뀌어요)</li>' : '<li class="empty">빈 자리</li>').repeat(empty)}</ul>
+      <p class="ol-small">${ai ? `🏁 친구 ${r.members.length}명 + 🤖 컴퓨터 ${ai}명, 모두 ${st.maxPlayers}대가 달려요` : `🏁 친구 ${r.members.length}명이 달려요`}</p>
       <div class="ol-grid">
         <div class="ol-set"><b>인원</b><span><button data-a="seats" data-v="-1" ${ctl('')}>−</button>${st.maxPlayers}명<button data-a="seats" data-v="1" ${ctl('')}>+</button></span></div>
         <div class="ol-set"><b>컴퓨터</b><span><button data-a="fillAI" class="${st.fillAI ? 'on' : ''}" ${ctl('')}>${st.fillAI ? '🤖 함께 달리기' : '👥 친구끼리만'}</button></span></div>
