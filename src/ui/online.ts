@@ -88,6 +88,8 @@ export class Online {
   private pick = { cat: 0, accessory: 'none' };
   private racing = false;
   private searchTimer = 0;
+  /** Screen currently drawn (to keep typed text when it redraws). */
+  private drawn: Screen = 'off';
 
   constructor(private hooks: OnlineHooks) {
     this.root = document.createElement('div');
@@ -106,10 +108,11 @@ export class Online {
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-a]');
       if (el && !el.hasAttribute('disabled')) void this.act(el.dataset.a!, el.dataset.v ?? '');
     });
+    // Forms carry data-form (not data-a): tapping a text box inside must not submit it.
     this.root.addEventListener('submit', (e) => {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
-      void this.act(form.dataset.a!, '');
+      void this.act(form.dataset.form!, '');
     });
     this.root.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
@@ -395,6 +398,7 @@ export class Online {
           await this.api.logout().catch(() => {});
           this.lists = { friends: [], received: [], sent: [] };
           this.message = null;
+          this.authTab = 'login';
           return this.show('auth');
         case 'deleteAccount': {
           const pw = prompt('정말 계정을 삭제할까요? 친구 목록도 모두 지워져요.\n확인하려면 비밀번호를 입력하세요.');
@@ -506,19 +510,32 @@ export class Online {
     this.root.className = s === 'off' ? '' : `show ${s}`;
     if (s === 'off') {
       this.root.innerHTML = '';
+      this.drawn = 'off';
       return;
     }
     // Keep focus and caret in a text box across re-renders (search updates live).
     const active = document.activeElement as HTMLInputElement | null;
     const keep = active && this.root.contains(active) && active.name ? { name: active.name, pos: active.selectionStart } : null;
+    // Redrawing the same screen keeps whatever was typed (friend lists refresh in the background).
+    const typed = new Map<string, string>();
+    if (s === this.drawn) for (const el of this.root.querySelectorAll<HTMLInputElement>('input[name]')) typed.set(el.name, el.value);
+    this.drawn = s;
     const msg = this.message ? `<p class="ol-msg ${this.message.bad ? 'bad' : 'good'}">${esc(this.message.text)}</p>` : '';
     const top = `<button data-a="${s === 'room' ? 'leaveRoom' : 'back'}" class="back-btn">← ${s === 'room' ? '방 나가기' : '뒤로'}</button>`;
     this.root.innerHTML = `${top}<div class="ol-panel">${this.body(s)}${msg}</div>`;
+    for (const [name, value] of typed) {
+      const el = this.root.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+      if (el && value) el.value = value;
+    }
     if (keep) {
       const el = this.root.querySelector<HTMLInputElement>(`[name="${keep.name}"]`);
       if (el) {
         el.focus();
-        if (keep.pos !== null) el.setSelectionRange(keep.pos, keep.pos);
+        try {
+          if (keep.pos !== null) el.setSelectionRange(keep.pos, keep.pos);
+        } catch {
+          /* some input types don't have a caret position */
+        }
       }
     }
   }
@@ -537,17 +554,17 @@ export class Online {
             <button data-a="tab" data-v="login" class="${signup ? '' : 'on'}">로그인</button>
             <button data-a="tab" data-v="signup" class="${signup ? 'on' : ''}">회원가입</button>
           </div>
-          <form data-a="auth" class="ol-form">
-            <label>아이디<input name="login" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="영어 소문자 · 숫자 · _ (4~20자)" /></label>
-            <label>비밀번호<input name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" maxlength="64" placeholder="8자 이상" /></label>
-            ${signup ? '<label>비밀번호 확인<input name="password2" type="password" autocomplete="new-password" maxlength="64" /></label>' : ''}
+          <form data-form="auth" class="ol-form" autocomplete="on">
+            <label>아이디<input name="login" id="ol-login" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" maxlength="20" placeholder="영어 소문자 · 숫자 · _ (4~20자)" /></label>
+            <label>비밀번호<input name="password" id="ol-password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" maxlength="64" placeholder="8자 이상" /></label>
+            ${signup ? '<label>비밀번호 확인<input name="password2" id="ol-password2" type="password" autocomplete="new-password" maxlength="64" /></label>' : ''}
             <button class="ol-go" ${busy}>${signup ? '가입하기' : '로그인'}</button>
           </form>`;
       }
       case 'nickname':
         return `<h2>닉네임 정하기</h2>
           <p>친구들이 나를 찾을 때 쓰는 이름이에요.</p>
-          <form data-a="nickname" class="ol-form">
+          <form data-form="nickname" class="ol-form">
             <label>닉네임<input name="nickname" maxlength="12" value="${esc(this.api.user?.nickname ?? '')}" placeholder="예) 치즈냥, Kitty" autocomplete="off" /></label>
             <p class="ol-small">영어 · 한글 3~12자 (숫자 섞어도 돼요). 다른 사람과 같은 닉네임은 쓸 수 없어요.</p>
             <button class="ol-go" ${busy}>정하기</button>
@@ -645,7 +662,7 @@ export class Online {
       ${
         r.members.length < st.maxPlayers
           ? `<h3>💌 친구 초대</h3><ul class="ol-list">${inviteList}</ul>
-             <form data-a="invite" class="ol-inline"><input name="inviteNick" placeholder="닉네임으로 초대" maxlength="12" autocomplete="off" /><button>초대</button></form>`
+             <form data-form="invite" class="ol-inline"><input name="inviteNick" placeholder="닉네임으로 초대" maxlength="12" autocomplete="off" /><button>초대</button></form>`
           : ''
       }
       ${
