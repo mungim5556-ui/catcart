@@ -19,6 +19,26 @@
    ```
    브라우저로 열었을 때 `CatCart server 🐱` 가 보이면 성공!
 
+## 1-2. 자동 배포 켜기 (처음 한 번, 추천)
+
+이걸 해 두면 `server/` 코드가 바뀌어서 GitHub에 올라갈 때마다 **GitHub가 알아서 Cloudflare에 배포**해요.
+(터미널에서 `wrangler deploy` 를 다시 칠 필요가 없어요)
+
+1. **Cloudflare API 토큰 만들기**
+   - https://dash.cloudflare.com/profile/api-tokens → **Create Token**
+   - **"Edit Cloudflare Workers"** 템플릿 → **Use template**
+   - Account Resources: 내 계정 / Zone Resources: **All zones** (그대로) → **Continue to summary → Create Token**
+   - 나온 토큰을 복사 (한 번만 보여요!)
+2. **Account ID 복사**
+   - Cloudflare 대시보드 → **Workers & Pages** → 오른쪽에 있는 **Account ID** 복사
+3. **GitHub에 비밀값으로 저장**
+   - GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+   - `CLOUDFLARE_API_TOKEN` = 1번 토큰
+   - `CLOUDFLARE_ACCOUNT_ID` = 2번 ID
+4. 확인: GitHub 저장소 → **Actions** 탭 → "Deploy server to Cloudflare" → **Run workflow** → 초록 체크 ✅ 면 성공!
+
+⚠️ 토큰은 비밀번호와 같아요. 채팅이나 코드에 붙여넣지 말고 GitHub Secrets에만 넣으세요.
+
 ## 2. 게임에 서버 주소 알려주기
 
 저장소 맨 위의 **`.env.production`** 파일에 주소가 적혀 있어요 (지금: `https://catcart-server.mungim5556.workers.dev`).

@@ -1,0 +1,52 @@
+# Deploys the online server (server/) to Cloudflare Workers whenever it changes.
+# One-time setup: repository Settings → Secrets and variables → Actions → New repository secret
+#   CLOUDFLARE_API_TOKEN  (Cloudflare dashboard → My Profile → API Tokens → "Edit Cloudflare Workers" template)
+#   CLOUDFLARE_ACCOUNT_ID (Cloudflare dashboard → Workers & Pages → Account ID on the right)
+name: Deploy server to Cloudflare
+
+on:
+  push:
+    branches: [main, claude/determined-pasteur-gkwg6w]
+    paths: ['server/**', '.github/workflows/deploy-server.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: server-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check the Cloudflare secrets are set
+        id: check
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN secret is not set yet, so the server was not deployed. See server/README.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install
+        if: steps.check.outputs.ready == 'true'
+        working-directory: server
+        run: npm ci
+      - name: Type-check
+        if: steps.check.outputs.ready == 'true'
+        working-directory: server
+        run: npx tsc --noEmit -p .
+      - name: Deploy
+        if: steps.check.outputs.ready == 'true'
+        working-directory: server
+        run: npx wrangler deploy
