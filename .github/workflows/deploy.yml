@@ -26,10 +26,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The online server address comes from .env.production.
       - run: npm run build
-        env:
-          # Online server address (repository Settings → Secrets and variables → Actions → Variables).
-          VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

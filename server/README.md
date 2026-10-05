@@ -21,19 +21,12 @@
 
 ## 2. 게임에 서버 주소 알려주기
 
-**웹 버전 (GitHub Pages)**
-1. GitHub 저장소 → **Settings → Secrets and variables → Actions → Variables 탭 → New repository variable**
-2. Name: `VITE_SERVER_URL`, Value: 위에서 복사한 주소
-3. 다음 `git push` 부터 웹 게임에 🌐 온라인 대전이 켜져요 (Actions 탭에서 "Run workflow" 로 바로 다시 배포해도 돼요)
+저장소 맨 위의 **`.env.production`** 파일에 주소가 적혀 있어요 (지금: `https://catcart-server.mungim5556.workers.dev`).
+- 웹 버전: `git push` 하면 GitHub Pages가 이 주소로 빌드돼요
+- 맥 · 아이폰 앱: `npm run build` 하면 이 주소가 들어가요
+- 서버 주소가 바뀌면 이 파일만 고치면 돼요 (주소는 비밀이 아니라 올라가도 괜찮아요)
 
-**맥 · 아이폰 앱**
-저장소 맨 위 폴더에 `.env.production.local` 파일을 만들고 한 줄 적은 뒤 `npm run build`:
-```
-VITE_SERVER_URL=https://catcart-server.<내-이름>.workers.dev
-```
-(이 파일은 git에 올라가지 않아요.)
-
-**잠깐 테스트만 할 때:** 게임 주소 뒤에 `?server=서버주소` 를 붙이면 그 서버로 접속해요.
+**잠깐 다른 서버로 테스트할 때:** 게임 주소 뒤에 `?server=서버주소` 를 붙이세요.
 
 ## 3. 내 컴퓨터에서 서버 돌려 보기 (개발용)
 
