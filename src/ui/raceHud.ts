@@ -2,9 +2,10 @@ import type { Track } from '../world/track';
 import type { Racer } from '../race/racer';
 import { RaceSession, TOTAL_LAPS, formatTime } from '../race/raceSession';
 
+const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
-export type ResultAction = 'again' | 'menu' | 'next' | 'ceremony';
+export type ResultAction = 'again' | 'menu' | 'next' | 'ceremony' | 'lobby' | 'leave';
 
 /** Cup standings shown on the results card. */
 export interface CupView {
@@ -187,14 +188,14 @@ export class RaceHud {
     this.count.classList.add('pop');
   }
 
-  showResults(race: RaceSession, standings: Racer[], player: Racer, cup?: CupView): void {
+  showResults(race: RaceSession, standings: Racer[], player: Racer, cup?: CupView, online?: { host: boolean }): void {
     const prev = race.prevRecords;
     const place = standings.indexOf(player) + 1;
     const board = standings
       .map((r, i) => {
         const time = r.finishTime !== null ? formatTime(r.finishTime) : '주행 중…';
         const dot = `<i style="background:${hex(r.style.kart)}"></i>`;
-        return `<tr class="${r === player ? 'me' : ''}"><td>${i + 1}</td><td>${dot}${r.name}</td><td>${time}</td></tr>`;
+        return `<tr class="${r === player ? 'me' : ''}"><td>${i + 1}</td><td>${dot}${esc(r.name)}</td><td>${time}</td></tr>`;
       })
       .join('');
     const newTotal = prev.bestTotal === null || race.time < prev.bestTotal;
@@ -218,13 +219,17 @@ export class RaceHud {
         </p>
         <div class="result-buttons">
           ${
-            cup && !cup.final
+            online
+              ? online.host
+                ? '<button data-result="lobby">🏁 대기실로 돌아가기 <kbd>Enter</kbd></button><button data-result="leave">방 나가기</button>'
+                : '<p class="wait">방장이 대기실로 돌아가면 같이 이동해요 🐾</p><button data-result="leave">방 나가기</button>'
+              : cup && !cup.final
               ? '<button data-result="next">다음 레이스 ▶ <kbd>Enter</kbd></button>'
               : cup
                 ? '<button data-result="ceremony">🏆 시상식 <kbd>Enter</kbd></button>'
                 : '<button data-result="again">↻ 다시 달리기 <kbd>Enter</kbd></button>'
           }
-          <button data-result="menu">🏠 메인 메뉴 <kbd>Esc</kbd></button>
+          ${online ? '' : '<button data-result="menu">🏠 메인 메뉴 <kbd>Esc</kbd></button>'}
         </div>
       </div>`;
     this.results.classList.add('show');

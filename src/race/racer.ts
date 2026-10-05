@@ -22,6 +22,11 @@ export class Racer implements ItemHolder {
   /** Base pace for AI (difficulty/personality); catch-up is applied on top. */
   pace = 1;
   rocketChance = 0;
+  /**
+   * Who drives this kart: this device's player, the computer, or another player over the
+   * network (online races; their kart state arrives as snapshots).
+   */
+  control: 'local' | 'ai' | 'remote' = 'ai';
   ability!: Ability;
   /** What this racer wears ('none' for nothing). */
   accessory = 'none';
@@ -31,6 +36,9 @@ export class Racer implements ItemHolder {
   roulette = 0;
   itemHold = 0;
   lastInput: KartInput = IDLE;
+
+  /** Floating nickname over other players' karts (online). */
+  private nameTag: THREE.Sprite | null = null;
 
   readonly prevPos = new THREE.Vector3();
   prevYaw = 0;
@@ -47,6 +55,7 @@ export class Racer implements ItemHolder {
     this.tracker = new LapTracker(track);
     // The player gets a driver too: it takes over after the finish line.
     this.ai = new AiDriver(track, { laneBias: 0, driftSkill: 0.8 });
+    if (isPlayer) this.control = 'local';
     this.setCharacter(character);
   }
 
@@ -101,8 +110,41 @@ export class Racer implements ItemHolder {
     this.prevYaw = this.physics.yaw;
   }
 
+  /** Shows `text` floating over the kart (null removes it). */
+  setNameTag(text: string | null, color = '#ffffff'): void {
+    if (this.nameTag) {
+      this.root.remove(this.nameTag);
+      this.nameTag.material.map?.dispose();
+      this.nameTag.material.dispose();
+      this.nameTag = null;
+    }
+    if (!text) return;
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 64;
+    const g = c.getContext('2d')!;
+    g.font = 'bold 34px "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+    const w = Math.min(248, g.measureText(text).width + 28);
+    g.fillStyle = 'rgba(40,30,60,.72)';
+    g.beginPath();
+    g.roundRect((256 - w) / 2, 8, w, 48, 24);
+    g.fill();
+    g.fillStyle = color;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, 128, 33, 230);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    // Drawn on top so you can always spot your friends in the pack.
+    this.nameTag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    this.nameTag.scale.set(4, 1, 1);
+    this.nameTag.renderOrder = 10;
+    this.root.add(this.nameTag);
+  }
+
   interpolate(alpha: number): void {
     this.renderPos.lerpVectors(this.prevPos, this.physics.pos, alpha);
+    this.nameTag?.position.set(this.renderPos.x, this.renderPos.y + 3.4, this.renderPos.z);
     const dy = Math.atan2(Math.sin(this.physics.yaw - this.prevYaw), Math.cos(this.physics.yaw - this.prevYaw));
     this.renderYaw = this.prevYaw + dy * alpha;
   }

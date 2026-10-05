@@ -75,6 +75,7 @@ interface Box {
 }
 
 interface Yarn {
+  id: string;
   mesh: THREE.Group;
   pos: THREE.Vector3;
   idx: number;
@@ -85,6 +86,7 @@ interface Yarn {
 }
 
 interface Banana {
+  id: string;
   mesh: THREE.Group;
   pos: THREE.Vector3;
   owner: Racer;
@@ -92,6 +94,7 @@ interface Banana {
 }
 
 interface Mouse {
+  id: string;
   mesh: THREE.Group;
   pos: THREE.Vector3;
   vel: THREE.Vector3;
@@ -105,10 +108,25 @@ interface Mouse {
 type Puddle = Banana;
 
 export type ItemEvent =
-  | { type: 'hit'; victim: Racer; by: Racer; item: HitItem }
+  | { type: 'hit'; victim: Racer; by: Racer; item: HitItem; id?: string }
   | { type: 'blocked'; racer: Racer }
   | { type: 'got'; racer: Racer; item: ItemKind }
   | { type: 'used'; racer: Racer; item: ItemKind };
+
+/**
+ * How an item was fired, enough for another player's game to fire the same one
+ * (online races send this to everyone).
+ */
+export interface Launch {
+  item: ItemKind;
+  id: string;
+  pos: THREE.Vector3;
+  dir: THREE.Vector3;
+  /** 🧶 Who the yarn homes in on. */
+  target: Racer | null;
+  /** 💦 Who the bath soaks. */
+  victims: Racer[];
+}
 
 /** Per-racer item state lives on the Racer; this owns boxes and things on the track. */
 export interface ItemHolder {
@@ -240,6 +258,16 @@ export class ItemSystem {
   private mice: Mouse[] = [];
   private puddles: Puddle[] = [];
   private time = 0;
+  private nextId = 0;
+  /**
+   * Whether this game decides hits on `r`. Online, every player only resolves hits on their
+   * own kart (and the host on the computer cats); the victim's game reports them.
+   */
+  authority: (r: Racer) => boolean = () => true;
+  /** Prefix that keeps projectile ids unique across players. */
+  idPrefix = '';
+  /** Projectiles used up on a kart this game decides for (to tell the other players). */
+  consumed: string[] = [];
 
   constructor(private track: Track) {
     const geo = new THREE.BoxGeometry(1.8, 1.8, 1.8);
@@ -283,10 +311,10 @@ export class ItemSystem {
   }
 
   /** Hits `victim`, reporting a shield block if a 📦 absorbed it. */
-  private strike(victim: Racer, by: Racer, item: HitItem, events: ItemEvent[]): void {
+  private strike(victim: Racer, by: Racer, item: HitItem, events: ItemEvent[], id?: string): void {
     const k = victim.physics;
     const shielded = k.shieldTime > 0 && k.invulnTime <= 0 && k.starTime <= 0;
-    if (k.hit()) events.push({ type: 'hit', victim, by, item });
+    if (k.hit()) events.push({ type: 'hit', victim, by, item, id });
     else if (shielded) events.push({ type: 'blocked', racer: victim });
   }
 
@@ -300,57 +328,90 @@ export class ItemSystem {
       r.item = null;
       r.itemUses = 0;
     }
-    const events: ItemEvent[] = [{ type: 'used', racer: r, item }];
     const k = r.physics;
-    const f = k.forward;
-    if (item === 'fish' || item === 'fish3') {
-      k.fishBoost();
-    } else if (item === 'box') {
-      k.shield();
-    } else if (item === 'catnip') {
-      k.catnip();
-    } else if (item === 'bath') {
+    const place = standings.indexOf(r);
+    const launch: Launch = {
+      item,
+      id: `${this.idPrefix}${this.nextId++}`,
+      pos: k.pos.clone(),
+      dir: k.forward,
+      // Yarn homes in on the kart one place ahead, if there is one.
+      target: item === 'yarn' && place > 0 ? standings[place - 1] : null,
       // Everyone ahead of you gets a surprise bath.
-      for (const v of standings.slice(0, standings.indexOf(r))) this.strike(v, r, 'bath', events);
+      victims: item === 'bath' ? standings.slice(0, place) : [],
+    };
+    if (item === 'fish' || item === 'fish3') k.fishBoost();
+    else if (item === 'box') k.shield();
+    else if (item === 'catnip') k.catnip();
+    const events: ItemEvent[] = [{ type: 'used', racer: r, item }];
+    this.spawn(r, launch, events);
+    this.lastLaunch = launch;
+    return events;
+  }
+
+  /** The launch made by the last use() (for sending to the other players). */
+  lastLaunch: Launch | null = null;
+
+  /** Another player fired an item: fire the same one here. */
+  remoteUse(owner: Racer, launch: Launch): ItemEvent[] {
+    const events: ItemEvent[] = [{ type: 'used', racer: owner, item: launch.item }];
+    this.spawn(owner, launch, events);
+    return events;
+  }
+
+  /** A projectile hit someone in another player's game: take it off the track here too. */
+  removeById(id: string): void {
+    const y = this.yarns.find((x) => x.id === id);
+    if (y) return this.removeYarn(y);
+    const b = this.bananas.find((x) => x.id === id);
+    if (b) return this.removeBanana(b);
+    const m = this.mice.find((x) => x.id === id);
+    if (m) {
+      this.group.remove(m.mesh);
+      this.mice.splice(this.mice.indexOf(m), 1);
+    }
+  }
+
+  private spawn(r: Racer, l: Launch, events: ItemEvent[]): void {
+    const { item, id } = l;
+    const f = l.dir.clone().setY(0).normalize();
+    if (item === 'bath') {
+      for (const v of l.victims) if (this.authority(v)) this.strike(v, r, 'bath', events);
     } else if (item === 'mouse') {
-      const pos = k.pos.clone().addScaledVector(f, 2.5);
+      const pos = l.pos.clone().addScaledVector(f, 2.5);
       const mesh = mouseMesh();
       mesh.position.copy(pos);
       this.group.add(mesh);
       const idx = this.track.nearest(pos.x, pos.z).index;
       const t = this.track.tangents[idx];
       const lane = (pos.x - this.track.points[idx].x) * t.z - (pos.z - this.track.points[idx].z) * t.x;
-      this.mice.push({ mesh, pos, vel: f.clone().multiplyScalar(MOUSE_SPEED), idx, lane, owner: r, age: 0 });
+      this.mice.push({ id, mesh, pos, vel: f.clone().multiplyScalar(MOUSE_SPEED), idx, lane, owner: r, age: 0 });
     } else if (item === 'milk') {
-      const pos = k.pos.clone().addScaledVector(f, -(MILK_RADIUS + 2));
+      const pos = l.pos.clone().addScaledVector(f, -(MILK_RADIUS + 2));
       pos.y = this.track.heightAt(pos.x, pos.z) + 0.04;
       const mesh = puddleMesh();
       mesh.position.copy(pos);
       mesh.rotation.y = Math.random() * Math.PI * 2;
       this.group.add(mesh);
-      this.puddles.push({ mesh, pos, owner: r, age: 0 });
+      this.puddles.push({ id, mesh, pos, owner: r, age: 0 });
     } else if (item === 'yarn') {
-      // Homes in on the kart one place ahead, if there is one.
-      const place = standings.indexOf(r);
-      const target = place > 0 ? standings[place - 1] : null;
-      const pos = k.pos.clone().addScaledVector(f, 2.5);
+      const pos = l.pos.clone().addScaledVector(f, 2.5);
       const mesh = yarnMesh();
       mesh.position.copy(pos);
       this.group.add(mesh);
       const idx = this.track.nearest(pos.x, pos.z).index;
       const t = this.track.tangents[idx];
       const lane = (pos.x - this.track.points[idx].x) * t.z - (pos.z - this.track.points[idx].z) * t.x;
-      this.yarns.push({ mesh, pos, idx, owner: r, target, age: 0, lane });
-    } else {
-      const pos = k.pos.clone().addScaledVector(f, -2.6);
+      this.yarns.push({ id, mesh, pos, idx, owner: r, target: l.target, age: 0, lane });
+    } else if (item === 'banana') {
+      const pos = l.pos.clone().addScaledVector(f, -2.6);
       pos.y = this.track.heightAt(pos.x, pos.z);
       const mesh = bananaMesh();
       mesh.position.copy(pos);
       mesh.rotation.y = Math.random() * Math.PI * 2;
       this.group.add(mesh);
-      this.bananas.push({ mesh, pos, owner: r, age: 0 });
+      this.bananas.push({ id, mesh, pos, owner: r, age: 0 });
     }
-    return events;
   }
 
   update(dt: number, racers: (Racer & ItemHolder)[], standings: Racer[]): ItemEvent[] {
@@ -371,7 +432,7 @@ export class ItemSystem {
         if ((p.x - b.pos.x) ** 2 + (p.z - b.pos.z) ** 2 > 2.2 * 2.2) continue;
         b.respawn = BOX_RESPAWN;
         b.mesh.visible = false;
-        if (!r.item && r.roulette <= 0) r.roulette = r.ability.rouletteTime ?? ROULETTE_TIME;
+        if (this.authority(r) && !r.item && r.roulette <= 0) r.roulette = r.ability.rouletteTime ?? ROULETTE_TIME;
         break;
       }
     }
@@ -419,9 +480,10 @@ export class ItemSystem {
       let gone = y.age > YARN_LIFE;
       for (const r of racers) {
         if (gone) break;
-        if (r === y.owner && y.age < 0.6) continue;
+        if ((r === y.owner && y.age < 0.6) || !this.authority(r)) continue;
         if (r.physics.pos.distanceToSquared(y.pos) < KART_HIT_RADIUS ** 2) {
-          this.strike(r, y.owner, 'yarn', events);
+          this.strike(r, y.owner, 'yarn', events, y.id);
+          this.consumed.push(y.id);
           gone = true;
         }
       }
@@ -444,9 +506,10 @@ export class ItemSystem {
         continue;
       }
       for (const r of racers) {
-        if (r === b.owner && b.age < 0.8) continue;
+        if ((r === b.owner && b.age < 0.8) || !this.authority(r)) continue;
         if (r.physics.pos.distanceToSquared(b.pos) < 1.4 ** 2) {
-          this.strike(r, b.owner, 'banana', events);
+          this.strike(r, b.owner, 'banana', events, b.id);
+          this.consumed.push(b.id);
           this.removeBanana(b);
           break;
         }
@@ -477,9 +540,10 @@ export class ItemSystem {
       let gone = m.age > MOUSE_LIFE;
       for (const r of racers) {
         if (gone) break;
-        if (r === m.owner && m.age < 0.6) continue;
+        if ((r === m.owner && m.age < 0.6) || !this.authority(r)) continue;
         if (r.physics.pos.distanceToSquared(m.pos) < KART_HIT_RADIUS ** 2) {
-          this.strike(r, m.owner, 'mouse', events);
+          this.strike(r, m.owner, 'mouse', events, m.id);
+          this.consumed.push(m.id);
           gone = true;
         }
       }
@@ -506,7 +570,7 @@ export class ItemSystem {
       }
       p.mesh.scale.setScalar(Math.min(1, p.age * 4)); // spreads out when poured
       for (const r of racers) {
-        if (r === p.owner && p.age < 2) continue;
+        if ((r === p.owner && p.age < 2) || !this.authority(r)) continue;
         const d2 = (r.physics.pos.x - p.pos.x) ** 2 + (r.physics.pos.z - p.pos.z) ** 2;
         if (d2 < (MILK_RADIUS + 0.6) ** 2 && r.physics.grounded && r.physics.slip())
           events.push({ type: 'hit', victim: r, by: p.owner, item: 'milk' });
@@ -517,7 +581,7 @@ export class ItemSystem {
     for (const r of racers) {
       if (r.physics.starTime <= 0) continue;
       for (const o of racers) {
-        if (o === r || o.physics.pos.distanceToSquared(r.physics.pos) > 2.6 ** 2) continue;
+        if (o === r || !this.authority(o) || o.physics.pos.distanceToSquared(r.physics.pos) > 2.6 ** 2) continue;
         this.strike(o, r, 'catnip', events);
       }
     }

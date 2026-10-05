@@ -36,6 +36,9 @@ export class Input {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
+      // Typing in a text field (online login, nickname, chat…) isn't driving.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (Object.values(KEYS).some((k) => k.includes(e.code)) || e.code === 'Escape') e.preventDefault();
       if (!this.down.has(e.code)) this.presses.set(e.code, (this.presses.get(e.code) ?? 0) + 1);
       this.down.add(e.code);

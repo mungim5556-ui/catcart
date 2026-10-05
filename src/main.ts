@@ -22,7 +22,9 @@ import { SkidMarks } from './fx/skidMarks';
 import { Ceremony } from './fx/ceremony';
 import { DIFFICULTIES, Menus, type Difficulty } from './ui/menus';
 import { preventZoom } from './core/noZoom';
-import type { CupView } from './ui/raceHud';
+import type { CupView, ResultAction } from './ui/raceHud';
+import { Online, type RoomLink, type StartMessage } from './ui/online';
+import { NetRace, type NetAction } from './net/netRace';
 
 const STEP = 1 / 60;
 const SKY = 0xbfe6ff;
@@ -68,8 +70,14 @@ scene.add(snowfall.points);
 
 const player = new Racer(ROSTER[0], true, track);
 const rivals = ROSTER.slice(1).map((c) => new Racer(c, false, track));
-const racers = [player, ...rivals];
-for (const r of racers) scene.add(r.root);
+const allRacers = [player, ...rivals];
+/** Karts in the current race (online races can have fewer than six). */
+let racers = allRacers;
+for (const r of allRacers) scene.add(r.root);
+/** The online race in progress (null offline). */
+let net: NetRace | null = null;
+/** True if this game moves `r` itself (always offline; online only its own kart, plus the AI on the host). */
+const drives = (r: Racer) => !net || net.drives(r);
 let difficulty: Difficulty = DIFFICULTIES[1];
 /** Points per finishing place in the cup, and the cup in progress (null = single race). */
 const CUP_POINTS = [10, 7, 5, 3, 2, 1];
@@ -146,7 +154,13 @@ function placeOnGrid(): void {
 
 function restartRace(): void {
   placeOnGrid();
+  beginRace();
+}
+
+/** Resets the race state for karts already on the grid. */
+function beginRace(): void {
   clock = 0;
+  trackHazards.resetClock();
   race.restart();
   raceHud.hideResults();
   items.clear();
@@ -166,7 +180,7 @@ function restartRace(): void {
 }
 
 // --- Game flow: title → cat select → race ⇄ pause ---
-type Mode = 'title' | 'select' | 'race' | 'paused' | 'ceremony';
+type Mode = 'title' | 'select' | 'race' | 'paused' | 'ceremony' | 'online';
 let mode: Mode = 'title';
 let menuTime = 0;
 
@@ -195,6 +209,7 @@ const menus = new Menus(ROSTER, {
   },
   onRestart: () => restartRace(),
   onQuit: () => goToTitle(),
+  onOnline: () => void online.open(),
   onToggleSound: () => audio.toggle(),
   soundOn: () => audio.enabled,
   onSound: (k) => (k === 'move' ? audio.menuMove() : audio.menuSelect()),
@@ -210,6 +225,7 @@ const menus = new Menus(ROSTER, {
 
 function goToTitle(): void {
   endCeremony();
+  leaveOnlineRace();
   mode = 'title';
   cup = null;
   loadTrack(menus.track);
@@ -244,7 +260,8 @@ function enterMobileRace(): void {
 }
 
 function pause(): void {
-  if (mode !== 'race' || race.phase === 'finished') return;
+  // Online races can't stop: everyone else keeps driving.
+  if (mode !== 'race' || race.phase === 'finished' || net) return;
   mode = 'paused';
   input.clearPresses(); // don't let drift/steer taps from the race drive the menu
   menus.show('pause');
@@ -267,7 +284,7 @@ function loadTrack(i: number): void {
   items = new ItemSystem(track);
   trackHazards = new TrackHazards(track, track.def.hazards, track.def.seed);
   scene.add(track.group, items.group, trackHazards.group);
-  for (const r of racers) r.setTrack(track);
+  for (const r of allRacers) r.setTrack(track);
   raceHud.setTrack(track);
   race.setTrack(track.def.id);
   skids.clear();
@@ -372,8 +389,10 @@ function endCeremony(): void {
   confetti = 0;
 }
 
-function resultAction(a: 'again' | 'menu' | 'next' | 'ceremony'): void {
-  if (a === 'ceremony') startCeremony();
+function resultAction(a: ResultAction): void {
+  if (a === 'lobby') online.hostBackToLobby();
+  else if (a === 'leave') online.quitRoom();
+  else if (a === 'ceremony') startCeremony();
   else if (a === 'next') nextCupRace();
   else if (a === 'again') (cup ? startCup() : restartRace());
   else goToTitle();
@@ -531,7 +550,7 @@ function hazardEffects(h: HazardHit): void {
 
 // --- Simulation step ---
 function onFinish(): void {
-  if (race.phase === 'finished') raceHud.showResults(race, standings(), player, cupView());
+  if (race.phase === 'finished') raceHud.showResults(race, standings(), player, cupView(), net ? { host: net.isHost } : undefined);
 }
 
 function step(): void {
@@ -545,22 +564,22 @@ function step(): void {
   const count = race.countdownLabel;
   if (count !== lastCount && count !== null) audio.countdown(false);
   lastCount = count;
+  const bots = racers.filter((r) => r.control === 'ai' && drives(r));
   if (gated.started) {
     audio.countdown(true);
     raceHud.go();
     if (race.rocketStart) player.physics.rocketStart();
-    for (const r of rivals) if (Math.random() < r.rocketChance) r.physics.rocketStart();
+    for (const r of bots) if (Math.random() < r.rocketChance) r.physics.rocketStart();
   }
+  if (net) for (const a of net.take()) netAction(a);
   const others = racers.map((r) => r.physics);
   const racing = race.phase !== 'countdown';
   const order = standings();
   const hazards = [...items.hazards, ...trackHazards.positions];
 
-  if (race.phase === 'racing' && gated.input.useItem) {
-    for (const e of items.use(player, order)) itemEffects(e);
-  }
+  if (race.phase === 'racing' && gated.input.useItem) useItem(player, order);
   const hadRoulette = player.roulette > 0;
-  if (racing) for (const r of rivals) if (items.aiWantsToUse(r, order)) for (const e of items.use(r, order)) itemEffects(e);
+  if (racing) for (const r of bots) if (items.aiWantsToUse(r, order)) useItem(r, order);
 
   // After the finish line the player's kart drives itself.
   player.lastInput =
@@ -568,7 +587,7 @@ function step(): void {
   player.physics.speedMul = race.phase === 'finished' ? 0.85 : 1;
 
   const playerDist = player.tracker.distance;
-  for (const r of rivals) {
+  for (const r of bots) {
     r.lastInput = racing ? r.ai.drive(r.physics, r.tracker, others, STEP, hazards) : IDLE_INPUT;
     // Catch-up: AI far ahead eases off, AI far behind pushes a little harder.
     const gap = r.tracker.distance - playerDist;
@@ -577,7 +596,10 @@ function step(): void {
     r.physics.speedMul = r.pace * difficulty.aiPace * catchUp;
   }
 
+  // Online: karts driven by other games are placed from their snapshots.
+  net?.applyRemote(racers, STEP);
   for (const r of racers) {
+    if (!drives(r)) continue;
     r.physics.step(STEP, r.lastInput, track);
     if (r.lastInput.reset) {
       r.snapRender();
@@ -588,9 +610,20 @@ function step(): void {
     r.physics.events.hit = true;
     r.physics.drifting = false;
   }
-  if (racing) for (const e of items.update(STEP, racers, order)) itemEffects(e);
+  if (racing)
+    for (const e of items.update(STEP, racers, order)) {
+      itemEffects(e);
+      if (net && e.type === 'hit') net.sendHit(e.victim, e.by, e.item, e.id);
+    }
+  net?.sendGone(items.consumed);
+  items.consumed = [];
   trackHazards.update(STEP);
-  if (racing) for (const h of trackHazards.collide(others, KART.radius)) hazardEffects(h);
+  if (racing)
+    for (const h of trackHazards.collide(
+      racers.filter(drives).map((r) => r.physics),
+      KART.radius,
+    ))
+      hazardEffects(h);
   if (!hadRoulette && player.roulette > 0) audio.itemBox();
   playerStepEffects();
 
@@ -599,6 +632,7 @@ function step(): void {
     if (r.isPlayer) {
       if (race.completeLap()) {
         player.finishTime = race.time;
+        net?.sendFinish(player, race.time);
         audio.finish(standings().indexOf(player) + 1);
         confetti = 2.5;
         onFinish();
@@ -610,15 +644,145 @@ function step(): void {
         hud.flash(`LAP ${race.currentLap}`, '#ffffff');
         audio.lap(false);
       }
-    } else if (!r.finished && r.tracker.lap >= TOTAL_LAPS && race.phase !== 'countdown') {
+    } else if (drives(r) && !r.finished && r.tracker.lap >= TOTAL_LAPS && race.phase !== 'countdown') {
+      // Other players' games report their own finish times.
       r.finishTime = clock;
+      net?.sendFinish(r, clock);
       onFinish();
     }
   }
   if (race.phase === 'racing') clock = race.time;
   else if (race.phase === 'finished') clock += STEP;
+  net?.tick(STEP, racers);
   // Drift press edge is consumed by the first step that sees it.
   player.lastInput.driftPressed = false;
+}
+
+/** Fires `r`'s item (and tells the other players, online). */
+function useItem(r: Racer, order: Racer[]): void {
+  for (const e of items.use(r, order)) itemEffects(e);
+  if (net && items.lastLaunch) net.sendLaunch(r, items.lastLaunch);
+  items.lastLaunch = null;
+}
+
+/** Something another player's game reported. */
+function netAction(a: NetAction): void {
+  switch (a.kind) {
+    case 'use':
+      for (const e of items.remoteUse(a.owner, a.launch)) {
+        itemEffects(e);
+        // A 💦 bath soaks karts this game drives: tell everyone.
+        if (net && e.type === 'hit') net.sendHit(e.victim, e.by, e.item, e.id);
+      }
+      break;
+    case 'hit':
+      if (a.id) items.removeById(a.id);
+      // Effects only: the victim's own game already spun it out.
+      itemEffects({ type: 'hit', victim: a.victim, by: a.by, item: a.item });
+      break;
+    case 'gone':
+      for (const id of a.ids) items.removeById(id);
+      break;
+    case 'fin':
+      a.racer.finishTime = a.time;
+      onFinish();
+      break;
+    case 'left':
+      hud.flash(`${a.racer.name}님이 나갔어요`, '#ffffff');
+      break;
+  }
+}
+
+// --- Online races ---
+const online = new Online({
+  onOpen: () => {
+    // Accepting an invite mid-race abandons an offline race.
+    if (mode === 'ceremony') endCeremony();
+    if (mode !== 'online') {
+      leaveOnlineRace();
+      raceHud.hideResults();
+      items.clear();
+      menus.show('none');
+      mode = 'online';
+      audio.duck(false);
+      audio.setTempo(1);
+      audio.setSong('menu');
+    }
+  },
+  onClose: () => goToTitle(),
+  onPreview: (cat, acc) => {
+    if (net) return;
+    assignCats(cat, acc);
+    placeOnGrid();
+  },
+  onRaceStart: (start, link) => startOnlineRace(start, link),
+  onRaceMessage: (msg) => net?.receive(msg),
+  onBackToLobby: () => {
+    leaveOnlineRace();
+    raceHud.hideResults();
+    items.clear();
+    mode = 'online';
+    audio.setTempo(1);
+    audio.setSong('menu');
+  },
+  sound: (k) => (k === 'move' ? audio.menuMove() : audio.menuSelect()),
+});
+
+function startOnlineRace(start: StartMessage, link: RoomLink): void {
+  endCeremony();
+  cup = null;
+  if (touch.active) enterMobileRace();
+  difficulty = DIFFICULTIES[start.difficulty] ?? DIFFICULTIES[1];
+  loadTrack(start.track);
+  const slots = start.slots.slice(0, allRacers.length);
+  const local = slots.findIndex((s) => s.kind === 'human' && s.id === link.myId);
+  // This device's player is always `player`; everyone else takes a rival kart.
+  const spare = [...rivals];
+  const mapped = slots.map((_, i) => (i === local ? player : spare.shift()!));
+  slots.forEach((s, i) => {
+    const r = mapped[i];
+    const cat = ROSTER[s.cat] ?? ROSTER[0];
+    r.setCharacter(cat);
+    if (s.kind === 'human') {
+      r.setAccessory(s.accessory ?? 'none');
+      r.control = i === local ? 'local' : 'remote';
+      r.name = i === local ? `${s.nickname} (나)` : (s.nickname ?? '?');
+      r.setNameTag(i === local ? null : (s.nickname ?? '?'), '#ffe066');
+    } else {
+      r.setAccessory(cat.signature);
+      r.control = 'ai';
+      r.name = `${cat.name} 🤖`;
+    }
+  });
+  for (const r of allRacers) r.root.visible = mapped.includes(r);
+  racers = mapped;
+  net = new NetRace(link, slots, mapped);
+  items.authority = (r) => net?.drives(r) ?? true;
+  items.idPrefix = `${local}-`;
+  const lanes = [-2, -1, 0, 1, 2, 0];
+  mapped.forEach((r, i) => {
+    r.place(track.gridPose(i));
+    r.ai.profile.laneBias = lanes[i];
+  });
+  chase.snap(player.physics);
+  mode = 'race';
+  beginRace();
+}
+
+/** Back to offline: all six karts, all driven here. */
+function leaveOnlineRace(): void {
+  if (!net && racers === allRacers) return;
+  net = null;
+  racers = allRacers;
+  for (const r of allRacers) {
+    r.root.visible = true;
+    r.control = r.isPlayer ? 'local' : 'ai';
+    r.setNameTag(null);
+  }
+  items.authority = () => true;
+  items.idPrefix = '';
+  assignCats(menus.cat, menus.accessoryId);
+  placeOnGrid();
 }
 
 // --- Per-frame audio & screen effects ---
@@ -694,6 +858,8 @@ function menuCamera(dt: number): void {
 
 // --- Main loop: fixed-step physics, interpolated rendering ---
 let acc = 0;
+/** Online: seconds left in which a second Esc leaves the race. */
+let leaveArmed = 0;
 let last = performance.now();
 
 function frame(now: number): void {
@@ -708,18 +874,31 @@ function frame(now: number): void {
       if (r === 'ok') audio.menuSelect();
       else if (r === 'early') hud.flash('너무 빨라요!', '#ff5a6e');
     }
-    if (touch.consumeTap('pause')) {
-      if (race.phase === 'finished') goToTitle();
-      else pause();
-    }
+    const pauseTap = touch.consumeTap('pause');
     const enter = input.consumePress('Enter') || input.consumePress('NumpadEnter');
     const esc = input.consumePress('Escape') || input.consumePress('KeyP');
-    if (race.phase === 'finished') {
+    leaveArmed = Math.max(0, leaveArmed - dt);
+    if (net) {
+      // Online: no pausing. Press twice to leave the race (and the room).
+      if (esc || pauseTap) {
+        if (leaveArmed > 0) online.quitRoom();
+        else {
+          leaveArmed = 2;
+          hud.flash(touch.active ? '한 번 더 누르면 방에서 나가요' : 'Esc를 한 번 더 누르면 방에서 나가요', '#ffffff');
+        }
+      } else if (enter && race.phase === 'finished' && net.isHost) online.hostBackToLobby();
+    } else if (pauseTap) {
+      if (race.phase === 'finished') goToTitle();
+      else pause();
+    } else if (race.phase === 'finished') {
       if (enter) resultAction(cup ? (cupView()!.final ? 'ceremony' : 'next') : 'again');
       else if (esc) goToTitle();
     } else if (esc) pause();
   } else if (mode === 'ceremony') {
     if (input.consumePress('Enter') || input.consumePress('NumpadEnter') || input.consumePress('Escape')) goToTitle();
+  } else if (mode === 'online') {
+    if (input.consumePress('Escape')) online.back();
+    input.clearPresses();
   } else {
     for (const code of MENU_KEYS) if (input.consumePress(code)) menus.key(code);
   }
@@ -772,7 +951,10 @@ requestAnimationFrame(frame);
 // Handy for tuning from the browser console: window.catcart.KART.maxSpeed = 30
 Object.assign(window, {
   catcart: {
-    player, rivals, racers, scene, renderer, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
+    player, rivals, scene, renderer, KART, KartPhysics, race, raceHud, LapTracker, RaceSession, standings,
+    get racers() {
+      return racers;
+    },
     get track() {
       return track;
     },
@@ -782,6 +964,11 @@ Object.assign(window, {
     get hazards() {
       return trackHazards;
     },
+    get net() {
+      return net;
+    },
+    online,
+    useItem: (order?: Racer[]) => useItem(player, order ?? standings()),
     loadTrack, startCup, nextCupRace,
     get cup() {
       return cup;

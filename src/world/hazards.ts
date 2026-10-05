@@ -675,6 +675,12 @@ export class TrackHazards {
     return this.list.filter((h) => h.threat).map((h) => h.pos);
   }
 
+  /** Back to the start of the obstacles' cycle (a new race; keeps online games in step). */
+  resetClock(): void {
+    this.time = 0;
+    this.update(0);
+  }
+
   /** Animates everything. Runs every physics step. */
   update(dt: number): void {
     this.time += dt;

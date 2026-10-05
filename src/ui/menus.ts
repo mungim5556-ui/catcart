@@ -30,6 +30,8 @@ export interface MenuHandlers {
   /** Single race on `trackIndex`, or a cup (which starts on track 0). */
   onStart(catIndex: number, accessory: string, difficulty: Difficulty, mode: RaceMode, trackIndex: number, cupIndex: number): void;
   onResume(): void;
+  /** 🌐 Online play (login, friends, rooms). */
+  onOnline(): void;
   onRestart(): void;
   onQuit(): void;
   /** Flip sound on/off; returns the new state. */
@@ -158,6 +160,7 @@ export class Menus {
             label: `${c.emoji} ${c.name} <small>${c.tracks.map((id) => TRACKS.find((t) => t.id === id)?.emoji).join('')}</small>`,
             action: `cup:${i}`,
           })),
+          { label: '🌐 온라인 대전', action: 'online' },
           ...this.touchButton(),
           { label: '🎮 조작법', action: 'controls' },
           this.soundButton(),
@@ -223,6 +226,9 @@ export class Menus {
       case 'resume':
         this.show('none');
         return this.h.onResume();
+      case 'online':
+        this.show('none');
+        return this.h.onOnline();
       case 'restart':
         this.show('none');
         return this.h.onRestart();

@@ -8,3 +8,6 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 build/
+
+# Local settings (e.g. VITE_SERVER_URL for app builds)
+*.local
